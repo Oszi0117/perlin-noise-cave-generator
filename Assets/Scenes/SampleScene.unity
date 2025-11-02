@@ -205,8 +205,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalRotation: {x: 0.12725012, y: 0.8575038, z: -0.25459078, w: 0.428577}
+  m_LocalPosition: {x: -45.881916, y: 26.243494, z: 33.5172}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -691,8 +691,8 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 1908659052}
-        m_TargetAssemblyTypeName: CaveGenerator, Assembly-CSharp
-        m_MethodName: GenerateCave
+        m_TargetAssemblyTypeName: CaveManagement.CaveManager, Assembly-CSharp
+        m_MethodName: GenerateNewCave
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -751,7 +751,7 @@ GameObject:
   - component: {fileID: 1908659051}
   - component: {fileID: 1908659052}
   m_Layer: 0
-  m_Name: CaveGenerator
+  m_Name: CaveManager
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -781,22 +781,20 @@ MonoBehaviour:
   m_GameObject: {fileID: 1908659050}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6953477597e2b534baf2529126a38717, type: 3}
+  m_Script: {fileID: 11500000, guid: fcb51f805b4cdfd4db76e261a6e36afe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  cubePrefab: {fileID: 0}
-  voxelSize: 1
-  volumeSize: {x: 50, y: 30, z: 50}
-  threshold: 0.55
-  noiseScale: {x: 0.08, y: 0.08, z: 0.08}
-  seed: 1337
-  octaves: 4
-  lacunarity: 2
-  persistence: 0.5
-  offset: {x: 0, y: 0, z: 0}
-  invertSelection: 0
-  caveRootName: CaveVoxels
-  clearBeforeGenerate: 1
+  _caveGenerator:
+    _chunkOrigin: {x: 0, y: 0, z: 0}
+    _voxelSize: 1
+    _chunkSize: {x: 50, y: 30, z: 50}
+    _threshold: 0.55
+    _noiseScale: {x: 0.08, y: 0.08, z: 0.08}
+    _seed: 1337
+    _octaves: 4
+    _lacunarity: 2
+    _persistence: 0.5
+    _offset: {x: 0, y: 0, z: 0}
 --- !u!1 &2134867147
 GameObject:
   m_ObjectHideFlags: 0
