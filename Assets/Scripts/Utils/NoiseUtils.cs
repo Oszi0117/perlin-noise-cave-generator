@@ -1,10 +1,11 @@
-using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using UnityEngine;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Mathematics;
 
 namespace Utils
 {
+    [BurstCompile]
     public static class NoiseUtils
     {
         private const int PERMUTATION_TABLE_SIZE = 256;
@@ -26,33 +27,32 @@ namespace Utils
         private const float QUINTIC_FADE_COEFFICIENT_FOR_T4 = 15f;
         private const float QUINTIC_FADE_COEFFICIENT_FOR_T3 = 10f;
 
-        public static Vector3[] GetVoxelCenters(
-            Bounds bounds,
+        public static void GetVoxelCenters(
+            NativeList<float3> result,
+            float3 boundsMin,
+            float3 boundsMax,
             float voxelSize,
             float threshold,
-            Vector3 noiseScale,
+            float3 noiseScale,
             int seed,
             int octaves = 4,
             float lacunarity = 2f,
             float persistence = 0.5f,
-            Vector3? offset = null)
+            float3 offset = default)
         {
             if (voxelSize <= 0f)
-                throw new ArgumentOutOfRangeException(nameof(voxelSize));
+                return;
 
             if (octaves < 1)
                 octaves = 1;
 
-            var noiseOffset = offset ?? Vector3.zero;
-            var boundsMin = bounds.min;
-            var boundsMax = bounds.max;
+            var permutationArray = BuildPermutationTable(seed, Allocator.Temp);
 
-            var cellCountX = Mathf.Max(1, Mathf.CeilToInt(bounds.size.x / voxelSize));
-            var cellCountY = Mathf.Max(1, Mathf.CeilToInt(bounds.size.y / voxelSize));
-            var cellCountZ = Mathf.Max(1, Mathf.CeilToInt(bounds.size.z / voxelSize));
+            var size = boundsMax - boundsMin;
 
-            var permutationArray = BuildPermutationTable(seed);
-            var positions = new List<Vector3>(cellCountX * cellCountY * cellCountZ / 2);
+            var cellCountX = math.max(1, (int)math.ceil(size.x / voxelSize));
+            var cellCountY = math.max(1, (int)math.ceil(size.y / voxelSize));
+            var cellCountZ = math.max(1, (int)math.ceil(size.z / voxelSize));
 
             for (var yIndex = 0; yIndex < cellCountY; yIndex++)
             {
@@ -70,24 +70,24 @@ namespace Utils
                         if (zCoordinate > boundsMax.z) continue;
 
                         var noiseValue = FractalBrownianMotion3D(
-                            (xCoordinate + noiseOffset.x) * noiseScale.x,
-                            (yCoordinate + noiseOffset.y) * noiseScale.y,
-                            (zCoordinate + noiseOffset.z) * noiseScale.z,
+                            (xCoordinate + offset.x) * noiseScale.x,
+                            (yCoordinate + offset.y) * noiseScale.y,
+                            (zCoordinate + offset.z) * noiseScale.z,
                             permutationArray, octaves, lacunarity, persistence);
 
-                        if (noiseValue >= threshold) positions.Add(new Vector3(xCoordinate, yCoordinate, zCoordinate));
+                        if (noiseValue >= threshold) result.Add(new float3(xCoordinate, yCoordinate, zCoordinate));
                     }
                 }
             }
 
-            return positions.ToArray();
+            permutationArray.Dispose();
         }
 
         public static float FractalBrownianMotion3D(
             float xCoordinate,
             float yCoordinate,
             float zCoordinate,
-            int[] permutationArray,
+            NativeArray<int> permutationArray,
             int octaves,
             float lacunarity,
             float persistence)
@@ -112,15 +112,15 @@ namespace Utils
             return amplitudeSum > 0f ? valueSum / amplitudeSum : 0f;
         }
 
-        public static float PerlinNoise3D(float xCoordinate, float yCoordinate, float zCoordinate, int[] permutationArray)
+        public static float PerlinNoise3D(float xCoordinate, float yCoordinate, float zCoordinate, NativeArray<int> permutationArray)
         {
             var gridXIndex = FastFloor(xCoordinate) & PERMUTATION_TABLE_MASK;
             var gridYIndex = FastFloor(yCoordinate) & PERMUTATION_TABLE_MASK;
             var gridZIndex = FastFloor(zCoordinate) & PERMUTATION_TABLE_MASK;
 
-            xCoordinate -= Mathf.Floor(xCoordinate);
-            yCoordinate -= Mathf.Floor(yCoordinate);
-            zCoordinate -= Mathf.Floor(zCoordinate);
+            xCoordinate -= math.floor(xCoordinate);
+            yCoordinate -= math.floor(yCoordinate);
+            zCoordinate -= math.floor(zCoordinate);
 
             var fadeX = QuinticFade(xCoordinate);
             var fadeY = QuinticFade(yCoordinate);
@@ -133,15 +133,15 @@ namespace Utils
             var hashForXPlusOneYAndZ = (permutationArray[hashForXPlusOneAndY] + gridZIndex) & PERMUTATION_TABLE_MASK;
             var hashForXPlusOneYPlusOneAndZ = (permutationArray[(hashForXPlusOneAndY + 1) & PERMUTATION_TABLE_MASK] + gridZIndex) & PERMUTATION_TABLE_MASK;
 
-            var gradientAt000 = GradientDotProduct(permutationArray[hashForXYAndZ], new Vector3(xCoordinate, yCoordinate, zCoordinate));
-            var gradientAt100 = GradientDotProduct(permutationArray[hashForXPlusOneYAndZ], new Vector3(xCoordinate - ONE_UNIT_STEP, yCoordinate, zCoordinate));
-            var gradientAt010 = GradientDotProduct(permutationArray[hashForXYPlusOneAndZ], new Vector3(xCoordinate, yCoordinate - ONE_UNIT_STEP, zCoordinate));
-            var gradientAt110 = GradientDotProduct(permutationArray[hashForXPlusOneYPlusOneAndZ], new Vector3(xCoordinate - ONE_UNIT_STEP, yCoordinate - ONE_UNIT_STEP, zCoordinate));
+            var gradientAt000 = GradientDotProduct(permutationArray[hashForXYAndZ], new float3(xCoordinate, yCoordinate, zCoordinate));
+            var gradientAt100 = GradientDotProduct(permutationArray[hashForXPlusOneYAndZ], new float3(xCoordinate - ONE_UNIT_STEP, yCoordinate, zCoordinate));
+            var gradientAt010 = GradientDotProduct(permutationArray[hashForXYPlusOneAndZ], new float3(xCoordinate, yCoordinate - ONE_UNIT_STEP, zCoordinate));
+            var gradientAt110 = GradientDotProduct(permutationArray[hashForXPlusOneYPlusOneAndZ], new float3(xCoordinate - ONE_UNIT_STEP, yCoordinate - ONE_UNIT_STEP, zCoordinate));
         
-            var gradientAt001 = GradientDotProduct(permutationArray[(hashForXYAndZ + 1) & PERMUTATION_TABLE_MASK], new Vector3(xCoordinate, yCoordinate, zCoordinate - ONE_UNIT_STEP));
-            var gradientAt101 = GradientDotProduct(permutationArray[(hashForXPlusOneYAndZ + 1) & PERMUTATION_TABLE_MASK], new Vector3(xCoordinate - ONE_UNIT_STEP, yCoordinate, zCoordinate - ONE_UNIT_STEP));
-            var gradientAt011 = GradientDotProduct(permutationArray[(hashForXYPlusOneAndZ + 1) & PERMUTATION_TABLE_MASK], new Vector3(xCoordinate, yCoordinate - ONE_UNIT_STEP, zCoordinate - ONE_UNIT_STEP));
-            var gradientAt111 = GradientDotProduct(permutationArray[(hashForXPlusOneYPlusOneAndZ + 1) & PERMUTATION_TABLE_MASK], new Vector3(xCoordinate - ONE_UNIT_STEP, yCoordinate - ONE_UNIT_STEP, zCoordinate - ONE_UNIT_STEP));
+            var gradientAt001 = GradientDotProduct(permutationArray[(hashForXYAndZ + 1) & PERMUTATION_TABLE_MASK], new float3(xCoordinate, yCoordinate, zCoordinate - ONE_UNIT_STEP));
+            var gradientAt101 = GradientDotProduct(permutationArray[(hashForXPlusOneYAndZ + 1) & PERMUTATION_TABLE_MASK], new float3(xCoordinate - ONE_UNIT_STEP, yCoordinate, zCoordinate - ONE_UNIT_STEP));
+            var gradientAt011 = GradientDotProduct(permutationArray[(hashForXYPlusOneAndZ + 1) & PERMUTATION_TABLE_MASK], new float3(xCoordinate, yCoordinate - ONE_UNIT_STEP, zCoordinate - ONE_UNIT_STEP));
+            var gradientAt111 = GradientDotProduct(permutationArray[(hashForXPlusOneYPlusOneAndZ + 1) & PERMUTATION_TABLE_MASK], new float3(xCoordinate - ONE_UNIT_STEP, yCoordinate - ONE_UNIT_STEP, zCoordinate - ONE_UNIT_STEP));
 
             var xInterpolationAtLowerYLowerZ = LinearInterpolate(fadeX, gradientAt000, gradientAt100);
             var xInterpolationAtUpperYLowerZ = LinearInterpolate(fadeX, gradientAt010, gradientAt110);
@@ -154,21 +154,23 @@ namespace Utils
             return result;
         }
 
-        private static int[] BuildPermutationTable(int seed)
+        public static NativeArray<int> BuildPermutationTable(int seed, Allocator allocator)
         {
-            var pseudoRandomNumberGenerator = new System.Random(seed);
-            var shuffledValues = new List<int>(PERMUTATION_TABLE_SIZE);
-            for (var index = 0; index < PERMUTATION_TABLE_SIZE; index++) shuffledValues.Add(index);
+            var permutationArray = new NativeArray<int>(PERMUTATION_ARRAY_SIZE, allocator);
 
+            for (var index = 0; index < PERMUTATION_TABLE_SIZE; index++)
+                permutationArray[index] = index;
+
+            uint state = (uint)seed;
             for (var index = PERMUTATION_TABLE_SIZE - 1; index > 0; index--)
             {
-                var swapIndex = pseudoRandomNumberGenerator.Next(index + 1);
-                (shuffledValues[index], shuffledValues[swapIndex]) = (shuffledValues[swapIndex], shuffledValues[index]);
+                state = 1664525u * state + 1013904223u;
+                var swapIndex = (int)(state % (uint)(index + 1));
+                (permutationArray[index], permutationArray[swapIndex]) = (permutationArray[swapIndex], permutationArray[index]);
             }
 
-            var permutationArray = new int[PERMUTATION_ARRAY_SIZE];
-            for (var index = 0; index < PERMUTATION_ARRAY_SIZE; index++)
-                permutationArray[index] = shuffledValues[index & PERMUTATION_TABLE_MASK];
+            for (var index = PERMUTATION_TABLE_SIZE; index < PERMUTATION_ARRAY_SIZE; index++)
+                permutationArray[index] = permutationArray[index - PERMUTATION_TABLE_SIZE];
 
             return permutationArray;
         }
@@ -179,16 +181,14 @@ namespace Utils
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static float QuinticFade(float value)
-            => value * value * value *
-               (value * (value * QUINTIC_FADE_COEFFICIENT_FOR_T5 - QUINTIC_FADE_COEFFICIENT_FOR_T4) +
-                QUINTIC_FADE_COEFFICIENT_FOR_T3);
+            => value * value * value * (value * (value * QUINTIC_FADE_COEFFICIENT_FOR_T5 - QUINTIC_FADE_COEFFICIENT_FOR_T4) + QUINTIC_FADE_COEFFICIENT_FOR_T3);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static float LinearInterpolate(float interpolationFactor, float from, float to)
             => from + interpolationFactor * (to - from);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float GradientDotProduct(int hash, Vector3 position)
+        private static float GradientDotProduct(int hash, float3 position)
         {
             var hashLowBits = hash & GRADIENT_HASH_MASK;
             var firstComponent = hashLowBits < GRADIENT_FIRST_COMPONENT_TOGGLE_THRESHOLD ? position.x : position.y;

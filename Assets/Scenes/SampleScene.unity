@@ -787,7 +787,7 @@ MonoBehaviour:
   _caveGenerator:
     _chunkOrigin: {x: 0, y: 0, z: 0}
     _voxelSize: 1
-    _chunkSize: {x: 50, y: 30, z: 50}
+    _chunkSize: {x: 10, y: 10, z: 10}
     _threshold: 0.55
     _noiseScale: {x: 0.08, y: 0.08, z: 0.08}
     _seed: 1337

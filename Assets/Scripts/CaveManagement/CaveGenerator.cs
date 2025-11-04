@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using CaveManagement.Jobs;
 using Cysharp.Threading.Tasks;
 using RuntimeData;
+using Unity.Collections;
+using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
-using Utils;
 using Object = UnityEngine.Object;
 
 namespace CaveManagement
@@ -32,39 +34,36 @@ namespace CaveManagement
 
         public async UniTask GenerateCave()
         {
+            var generationBounds = new Bounds(_chunkOrigin, _chunkSize);
+            var data = new ChunkGenerateSingleData(
+                boundsMin: new float3(generationBounds.min.x, generationBounds.min.y, generationBounds.min.z),
+                boundsMax: new float3(generationBounds.max.x, generationBounds.max.y, generationBounds.max.z),
+                voxelSize: _voxelSize,
+                threshold: _threshold,
+                noiseScale: _noiseScale,
+                seed: _seed,
+                octaves: _octaves,
+                lacunarity: _lacunarity,
+                persistence: _persistence,
+                offset: _offset
+            );
+            var job = new ChunkGenerateJobSingle(data);
+            var handle = job.Schedule();
+            
+            await UniTask.WaitUntil(() => handle.IsCompleted);
+            handle.Complete();
+
             ClearCave();
 
-            var generationBounds = new Bounds(_chunkOrigin, _chunkSize);
+            var voxels = job.Result;
             
-            var voxels = await UniTask.RunOnThreadPool(GenerateTask);
-            
-
             CaveData.Instance.VoxelCenters = voxels;
-
+            
             foreach (var voxelCenter in voxels)
             {
                 var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 go.transform.position = voxelCenter;
                 _spawnedCubes.Add(go);
-            }
-
-            return;
-            
-            UniTask<Vector3[]> GenerateTask()
-            {
-                var voxelCenters = NoiseUtils.GetVoxelCenters(
-                    generationBounds,
-                    _voxelSize,
-                    _threshold,
-                    _noiseScale,
-                    _seed,
-                    _octaves,
-                    _lacunarity,
-                    _persistence,
-                    _offset
-                );
-
-                return UniTask.FromResult(voxelCenters);
             }
         }
 
@@ -75,7 +74,7 @@ namespace CaveManagement
                 Object.Destroy(spawnedCube);
             }
             _spawnedCubes.Clear();
-            CaveData.Instance.VoxelCenters = null;
+            CaveData.Instance.VoxelCenters = new NativeList<float3>();
         }
     }
 }

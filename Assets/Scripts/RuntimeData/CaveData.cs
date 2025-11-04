@@ -1,9 +1,11 @@
+using Unity.Collections;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace RuntimeData
 {
     public class CaveData : RuntimeData<CaveData>
     {
-        public Vector3[] VoxelCenters;
+        public NativeList<float3> VoxelCenters;
     }
 }
