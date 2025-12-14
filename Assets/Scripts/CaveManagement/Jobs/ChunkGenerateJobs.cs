@@ -7,12 +7,12 @@ using Utils;
 namespace CaveManagement.Jobs
 {
     [BurstCompile]
-    public struct ChunkGenerateJob : IJobParallelFor
+    public struct ChunkGenerateJobs : IJobParallelFor
     {
         [WriteOnly] public NativeArray<NativeList<float3>> Result;
-        [ReadOnly] public ChunkGenerateData Data;
+        [ReadOnly] public MultipleChunkGenerateData Data;
 
-        public ChunkGenerateJob(NativeArray<NativeList<float3>> result, ChunkGenerateData data)
+        public ChunkGenerateJobs(NativeArray<NativeList<float3>> result, MultipleChunkGenerateData data)
         {
             Result = result;
             Data = data;
@@ -39,9 +39,9 @@ namespace CaveManagement.Jobs
     public struct ChunkGenerateJobSingle : IJob
     {
         public NativeList<float3> Result;
-        [ReadOnly] public ChunkGenerateSingleData Data;
+        [ReadOnly] public SingleChunkGenerateData Data;
 
-        public ChunkGenerateJobSingle(ChunkGenerateSingleData data)
+        public ChunkGenerateJobSingle(SingleChunkGenerateData data)
         {
             Result = new NativeList<float3>(Allocator.Persistent);
             Data = data;
@@ -64,7 +64,7 @@ namespace CaveManagement.Jobs
         }
     }
 
-    public readonly struct ChunkGenerateSingleData
+    public readonly struct SingleChunkGenerateData
     {
         public readonly float3 BoundsMin;
         public readonly float3 BoundsMax;
@@ -77,7 +77,7 @@ namespace CaveManagement.Jobs
         public readonly float Persistence;
         public readonly float3 Offset;
 
-        public ChunkGenerateSingleData(
+        public SingleChunkGenerateData(
             float3 boundsMin,
             float3 boundsMax,
             float voxelSize,
@@ -102,7 +102,7 @@ namespace CaveManagement.Jobs
         }
     }
 
-    public readonly struct ChunkGenerateData
+    public readonly struct MultipleChunkGenerateData
     {
         public readonly NativeArray<float3> BoundsMinArray;
         public readonly NativeArray<float3> BoundsMaxArray;
@@ -115,7 +115,7 @@ namespace CaveManagement.Jobs
         public readonly NativeArray<float> PersistenceArray;
         public readonly NativeArray<float3> OffsetArray;
 
-        public ChunkGenerateData(
+        public MultipleChunkGenerateData(
             NativeArray<float3> boundsMinArray,
             NativeArray<float3> boundsMaxArray,
             NativeArray<float> voxelSizeArray,
