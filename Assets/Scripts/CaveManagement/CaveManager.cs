@@ -8,7 +8,7 @@ namespace CaveManagement
     {
         [SerializeField] private ChunkGenerationDataSO _chunkGenerationData;
         private readonly ChunkGenerator _chunkGenerator = new();
-        private readonly CaveSpawner _caveSpawner = new();
+        private readonly ChunkSpawner _chunkSpawner = new();
 
         public void GenerateNewCave()
         {

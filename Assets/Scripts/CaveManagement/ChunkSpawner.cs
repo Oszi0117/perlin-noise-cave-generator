@@ -1,6 +1,6 @@
 ﻿namespace CaveManagement
 {
-    public class CaveSpawner
+    public class ChunkSpawner
     {
         
     }
