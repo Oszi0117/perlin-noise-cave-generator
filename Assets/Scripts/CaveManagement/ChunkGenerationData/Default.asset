@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e9a9000e9d28d9142a072bd15fa8cd73, type: 3}
   m_Name: Default
   m_EditorClassIdentifier: 
+  VoxelMaterial: {fileID: 2100000, guid: 79c38867d54c5124bbe49f7c56571f5e, type: 2}
   ChunkOrigin: {x: 0, y: 0, z: 0}
   VoxelSize: 1
   ChunkSize: {x: 50, y: 50, z: 50}
