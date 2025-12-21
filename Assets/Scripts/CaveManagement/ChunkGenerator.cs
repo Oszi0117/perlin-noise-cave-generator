@@ -4,11 +4,9 @@ using CaveManagement.ChunkGenerationData;
 using CaveManagement.Jobs;
 using Cysharp.Threading.Tasks;
 using RuntimeData;
-using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
-using Object = UnityEngine.Object;
 
 namespace CaveManagement
 {
@@ -16,11 +14,9 @@ namespace CaveManagement
     public class ChunkGenerator
     {
         private ChunkGenerationDataSO _generateDataSO;
-        private Transform _parent;
 
-        public void Init(ChunkGenerationDataSO generateDataSO, Transform parent)
+        public void Init(ChunkGenerationDataSO generateDataSO)
         {
-            _parent = parent;
             _generateDataSO = generateDataSO;
         }
 
@@ -51,7 +47,7 @@ namespace CaveManagement
             
             for (int i = 0; i < count; i++)
             {
-                float3 p = voxelsNative[i];
+                var p = voxelsNative[i];
                 voxelsManaged[i] = new VoxelData(p);
             }
             voxelsNative.Dispose();

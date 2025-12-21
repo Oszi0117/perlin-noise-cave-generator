@@ -12,7 +12,7 @@ namespace CaveManagement
 
         public void GenerateNewCave()
         {
-            _chunkGenerator.Init(generateDataSO: _chunkGenerationData, parent: transform);
+            _chunkGenerator.Init(generateDataSO: _chunkGenerationData);
             _chunkGenerator.GenerateCave().Forget();
         }
     }
