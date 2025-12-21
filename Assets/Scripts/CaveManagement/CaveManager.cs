@@ -12,8 +12,14 @@ namespace CaveManagement
 
         public void GenerateNewCave()
         {
+            CreateCaveAsync().Forget();
+        }
+
+        public async UniTask CreateCaveAsync()
+        {
             _chunkGenerator.Init(generateDataSO: _chunkGenerationData);
-            _chunkGenerator.GenerateCave().Forget();
+            await _chunkGenerator.GenerateCave();
+            _chunkSpawner.SpawnChunks(_chunkGenerationData, transform);
         }
     }
 }

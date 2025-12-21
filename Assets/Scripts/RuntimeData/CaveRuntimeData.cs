@@ -6,5 +6,6 @@ namespace RuntimeData
     public class CaveRuntimeData : RuntimeData<CaveRuntimeData>
     {
         public List<ChunkData> Chunks;
+        public List<MeshData> Meshes;
     }
 }
