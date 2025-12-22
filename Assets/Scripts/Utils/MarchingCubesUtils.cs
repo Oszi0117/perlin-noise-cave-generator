@@ -299,23 +299,5 @@ namespace Utils
             { 7, 11, 6, 5, 4, 10, 4, 0, 10, 0, 2, 10, -1, -1, -1, -1 },
             { 3, 4, 8, 3, 5, 4, 3, 2, 5, 10, 5, 2, 11, 6, 7, -1 }
         };
-
-        public static int Index(int x, int y, int z, int3 gridSize)
-        {
-            return (z * gridSize.y + y) * gridSize.x + x;
-        }
-
-        public static float3 VertexInterp(float isoLevel, float3 p1, float3 p2, float valp1, float valp2)
-        {
-            if (math.abs(isoLevel - valp1) < 0.00001f)
-                return p1;
-            if (math.abs(isoLevel - valp2) < 0.00001f)
-                return p2;
-            if (math.abs(valp1 - valp2) < 0.00001f)
-                return p1;
-
-            var mu = (isoLevel - valp1) / (valp2 - valp1);
-            return p1 + mu * (p2 - p1);
-        }
     }
 }

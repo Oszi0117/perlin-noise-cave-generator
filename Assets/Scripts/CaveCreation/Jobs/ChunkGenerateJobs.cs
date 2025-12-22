@@ -4,15 +4,15 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using Utils;
 
-namespace CaveManagement.Jobs
+namespace CaveCreation.Jobs
 {
     [BurstCompile]
     public struct ChunkGenerateJobs : IJobParallelFor
     {
-        [WriteOnly] public NativeArray<NativeList<float3>> Result;
+        [WriteOnly] public NativeArray<NativeList<float4>> Result;
         [ReadOnly] public MultipleChunkGenerateData Data;
 
-        public ChunkGenerateJobs(NativeArray<NativeList<float3>> result, MultipleChunkGenerateData data)
+        public ChunkGenerateJobs(NativeArray<NativeList<float4>> result, MultipleChunkGenerateData data)
         {
             Result = result;
             Data = data;
@@ -20,47 +20,43 @@ namespace CaveManagement.Jobs
 
         public void Execute(int jobIndex)
         {
-            NoiseUtils.GetVoxelCenters(
+            NoiseUtils.GetVoxelValues(
                 Result[jobIndex],
                 Data.BoundsMinArray[jobIndex],
                 Data.BoundsMaxArray[jobIndex],
                 Data.VoxelSizeArray[jobIndex],
-                Data.ThresholdArray[jobIndex],
                 Data.NoiseScaleArray[jobIndex],
                 Data.SeedArray[jobIndex],
                 Data.OctavesArray[jobIndex],
                 Data.LacunarityArray[jobIndex],
-                Data.PersistenceArray[jobIndex],
-                Data.OffsetArray[jobIndex]);
+                Data.PersistenceArray[jobIndex]);
         }
     }
 
     [BurstCompile]
     public struct ChunkGenerateJobSingle : IJob
     {
-        public NativeList<float3> Result;
+        public NativeList<float4> Result;
         [ReadOnly] public SingleChunkGenerateData Data;
 
         public ChunkGenerateJobSingle(SingleChunkGenerateData data)
         {
-            Result = new NativeList<float3>(Allocator.Persistent);
+            Result = new NativeList<float4>(Allocator.Persistent);
             Data = data;
         }
 
         public void Execute()
         {
-            NoiseUtils.GetVoxelCenters(
+            NoiseUtils.GetVoxelValues(
                 Result,
                 Data.BoundsMin,
                 Data.BoundsMax,
                 Data.VoxelSize,
-                Data.Threshold,
                 Data.NoiseScale,
                 Data.Seed,
                 Data.Octaves,
                 Data.Lacunarity,
-                Data.Persistence,
-                Data.Offset);
+                Data.Persistence);
         }
     }
 
@@ -75,7 +71,6 @@ namespace CaveManagement.Jobs
         public readonly int Octaves;
         public readonly float Lacunarity;
         public readonly float Persistence;
-        public readonly float3 Offset;
 
         public SingleChunkGenerateData(
             float3 boundsMin,
@@ -86,8 +81,7 @@ namespace CaveManagement.Jobs
             int seed,
             int octaves,
             float lacunarity,
-            float persistence,
-            float3 offset)
+            float persistence)
         {
             BoundsMin = boundsMin;
             BoundsMax = boundsMax;
@@ -98,7 +92,6 @@ namespace CaveManagement.Jobs
             Octaves = octaves;
             Lacunarity = lacunarity;
             Persistence = persistence;
-            Offset = offset;
         }
     }
 
@@ -113,7 +106,6 @@ namespace CaveManagement.Jobs
         public readonly NativeArray<int> OctavesArray;
         public readonly NativeArray<float> LacunarityArray;
         public readonly NativeArray<float> PersistenceArray;
-        public readonly NativeArray<float3> OffsetArray;
 
         public MultipleChunkGenerateData(
             NativeArray<float3> boundsMinArray,
@@ -124,8 +116,7 @@ namespace CaveManagement.Jobs
             NativeArray<int> seedArray,
             NativeArray<int> octavesArray,
             NativeArray<float> lacunarityArray,
-            NativeArray<float> persistenceArray,
-            NativeArray<float3> offsetArray)
+            NativeArray<float> persistenceArray)
         {
             BoundsMinArray = boundsMinArray;
             BoundsMaxArray = boundsMaxArray;
@@ -136,7 +127,6 @@ namespace CaveManagement.Jobs
             OctavesArray = octavesArray;
             LacunarityArray = lacunarityArray;
             PersistenceArray = persistenceArray;
-            OffsetArray = offsetArray;
         }
     }
 }

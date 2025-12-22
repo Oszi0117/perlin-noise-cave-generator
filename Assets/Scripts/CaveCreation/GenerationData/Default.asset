@@ -15,7 +15,7 @@ MonoBehaviour:
   VoxelMaterial: {fileID: 2100000, guid: 79c38867d54c5124bbe49f7c56571f5e, type: 2}
   ChunkOrigin: {x: 0, y: 0, z: 0}
   VoxelSize: 1
-  ChunkSize: {x: 50, y: 50, z: 50}
+  ChunkSize: {x: 10, y: 10, z: 10}
   Threshold: 0.5
   NoiseScale: {x: 0.08, y: 0.08, z: 0.08}
   Seed: 3333

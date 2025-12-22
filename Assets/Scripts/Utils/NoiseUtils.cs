@@ -27,18 +27,16 @@ namespace Utils
         private const float QUINTIC_FADE_COEFFICIENT_FOR_T4 = 15f;
         private const float QUINTIC_FADE_COEFFICIENT_FOR_T3 = 10f;
 
-        public static void GetVoxelCenters(
-            NativeList<float3> result,
+        public static void GetVoxelValues(
+            NativeList<float4> result,
             float3 boundsMin,
             float3 boundsMax,
             float voxelSize,
-            float threshold,
             float3 noiseScale,
             int seed,
             int octaves = 4,
             float lacunarity = 2f,
-            float persistence = 0.5f,
-            float3 offset = default)
+            float persistence = 0.5f)
         {
             if (voxelSize <= 0f)
                 return;
@@ -70,12 +68,12 @@ namespace Utils
                         if (zCoordinate > boundsMax.z) continue;
 
                         var noiseValue = FractalBrownianMotion3D(
-                            (xCoordinate + offset.x) * noiseScale.x,
-                            (yCoordinate + offset.y) * noiseScale.y,
-                            (zCoordinate + offset.z) * noiseScale.z,
+                            xCoordinate * noiseScale.x,
+                            yCoordinate * noiseScale.y,
+                            zCoordinate * noiseScale.z,
                             permutationArray, octaves, lacunarity, persistence);
 
-                        if (noiseValue >= threshold) result.Add(new float3(xCoordinate, yCoordinate, zCoordinate));
+                        result.Add(new float4(xCoordinate, yCoordinate, zCoordinate, noiseValue));
                     }
                 }
             }
@@ -154,7 +152,7 @@ namespace Utils
             return result;
         }
 
-        public static NativeArray<int> BuildPermutationTable(int seed, Allocator allocator)
+        private static NativeArray<int> BuildPermutationTable(int seed, Allocator allocator)
         {
             var permutationArray = new NativeArray<int>(PERMUTATION_ARRAY_SIZE, allocator);
 
