@@ -5,7 +5,7 @@ namespace CaveCreation.GenerationData
     [CreateAssetMenu(fileName = "GenerationDataSO", menuName = "Generation Data")]
     public class CaveCreationDataSO : ScriptableObject
     {
-        public Material VoxelMaterial;
+        public GameObject VoxelPrefab;
         public Vector3 ChunkOrigin;
         public float VoxelSize = 1f;
         public Vector3 ChunkSize = new(50, 30, 50);

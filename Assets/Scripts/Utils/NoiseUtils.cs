@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace Utils
 {
@@ -39,7 +40,7 @@ namespace Utils
             float persistence = 0.5f)
         {
             if (voxelSize <= 0f)
-                return;
+                voxelSize = 1f;
 
             if (octaves < 1)
                 octaves = 1;
@@ -175,7 +176,10 @@ namespace Utils
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int FastFloor(float value)
-            => value >= 0 ? (int)value : (int)value - 1;
+        {
+            int i = (int)value;
+            return value < i ? i - 1 : i;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static float QuinticFade(float value)

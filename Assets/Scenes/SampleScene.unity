@@ -784,7 +784,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fcb51f805b4cdfd4db76e261a6e36afe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _chunkGenerationData: {fileID: 11400000, guid: 44cb1c88afe37c646939f99937de7889, type: 2}
+  _caveCreationData: {fileID: 11400000, guid: 44cb1c88afe37c646939f99937de7889, type: 2}
 --- !u!1 &2134867147
 GameObject:
   m_ObjectHideFlags: 0
