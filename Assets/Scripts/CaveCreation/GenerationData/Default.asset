@@ -15,8 +15,7 @@ MonoBehaviour:
   ChunkOrigin: {x: 0, y: 0, z: 0}
   VoxelSize: 1
   ChunkSize: {x: 100, y: 100, z: 100}
-  Threshold: 0.496
-  NoiseScale: {x: 0.025, y: 0.025, z: 0.025}
+  NoiseScale: {x: 0.02, y: 0.02, z: 0.02}
   Seed: 3333
   Octaves: 4
   Lacunarity: 2
