@@ -1,13 +1,15 @@
+using System;
 using CaveCreation.GenerationData;
 using Cysharp.Threading.Tasks;
+using RuntimeData;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace CaveCreation
 {
     public class CaveManager : MonoBehaviour
     {
-        [FormerlySerializedAs("_chunkGenerationData")] [SerializeField] private CaveCreationDataSO _caveCreationData;
+        [SerializeField] private MeshFilter _meshFilter;
+        [SerializeField] private CaveCreationDataSO _caveCreationData;
         private readonly ChunkGenerator _chunkGenerator = new();
         private readonly ChunkSpawner _chunkSpawner = new();
 
@@ -20,7 +22,8 @@ namespace CaveCreation
         {
             _chunkGenerator.Init(generateDataSO: _caveCreationData);
             await _chunkGenerator.GenerateCave();
-            await _chunkSpawner.SpawnChunks(_caveCreationData, transform);
+            _chunkSpawner.Init(_caveCreationData, _meshFilter);
+            _chunkSpawner.SpawnChunk(CaveRuntimeData.Instance.Chunks[0].Voxels);
         }
     }
 }

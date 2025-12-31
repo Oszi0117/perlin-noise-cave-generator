@@ -65,7 +65,6 @@ namespace CaveCreation.Jobs
         public readonly float3 BoundsMin;
         public readonly float3 BoundsMax;
         public readonly float VoxelSize;
-        public readonly float Threshold;
         public readonly float3 NoiseScale;
         public readonly int Seed;
         public readonly int Octaves;
@@ -76,7 +75,6 @@ namespace CaveCreation.Jobs
             float3 boundsMin,
             float3 boundsMax,
             float voxelSize,
-            float threshold,
             float3 noiseScale,
             int seed,
             int octaves,
@@ -86,7 +84,6 @@ namespace CaveCreation.Jobs
             BoundsMin = boundsMin;
             BoundsMax = boundsMax;
             VoxelSize = voxelSize;
-            Threshold = threshold;
             NoiseScale = noiseScale;
             Seed = seed;
             Octaves = octaves;
@@ -100,7 +97,6 @@ namespace CaveCreation.Jobs
         public readonly NativeArray<float3> BoundsMinArray;
         public readonly NativeArray<float3> BoundsMaxArray;
         public readonly NativeArray<float> VoxelSizeArray;
-        public readonly NativeArray<float> ThresholdArray;
         public readonly NativeArray<float3> NoiseScaleArray;
         public readonly NativeArray<int> SeedArray;
         public readonly NativeArray<int> OctavesArray;
@@ -111,7 +107,6 @@ namespace CaveCreation.Jobs
             NativeArray<float3> boundsMinArray,
             NativeArray<float3> boundsMaxArray,
             NativeArray<float> voxelSizeArray,
-            NativeArray<float> thresholdArray,
             NativeArray<float3> noiseScaleArray,
             NativeArray<int> seedArray,
             NativeArray<int> octavesArray,
@@ -121,7 +116,6 @@ namespace CaveCreation.Jobs
             BoundsMinArray = boundsMinArray;
             BoundsMaxArray = boundsMaxArray;
             VoxelSizeArray = voxelSizeArray;
-            ThresholdArray = thresholdArray;
             NoiseScaleArray = noiseScaleArray;
             SeedArray = seedArray;
             OctavesArray = octavesArray;

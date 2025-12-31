@@ -31,7 +31,6 @@ namespace CaveCreation
                 boundsMin: boundsMin,
                 boundsMax: boundsMax,
                 voxelSize: _generateDataSO.VoxelSize,
-                threshold: _generateDataSO.Threshold,
                 noiseScale: _generateDataSO.NoiseScale,
                 seed: _generateDataSO.Seed,
                 octaves: _generateDataSO.Octaves,

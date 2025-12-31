@@ -12,14 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e9a9000e9d28d9142a072bd15fa8cd73, type: 3}
   m_Name: Default
   m_EditorClassIdentifier: 
-  VoxelPrefab: {fileID: 7948611707229497598, guid: e5ef47688ffa66049903d99b39d24603, type: 3}
   ChunkOrigin: {x: 0, y: 0, z: 0}
-  VoxelSize: 0
-  ChunkSize: {x: 20, y: 20, z: 20}
-  Threshold: 0.5
-  NoiseScale: {x: 0.08, y: 0.08, z: 0.08}
+  VoxelSize: 1
+  ChunkSize: {x: 100, y: 100, z: 100}
+  Threshold: 0.496
+  NoiseScale: {x: 0.025, y: 0.025, z: 0.025}
   Seed: 3333
   Octaves: 4
   Lacunarity: 2
   Persistence: 0.5
-  MaxSpawnDestroyOperationsPerFrame: 1024
+  IsoLevel: 0.5
