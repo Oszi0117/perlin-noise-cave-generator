@@ -6,6 +6,7 @@ using Utils;
 
 namespace CaveCreation
 {
+    //TODO: try adding vertices welding
     public class ChunkSpawner
     {
         private CaveCreationDataSO _generateDataSO;
@@ -22,6 +23,7 @@ namespace CaveCreation
 
         public void SpawnChunk(VoxelData[] data)
         {
+            //TODO: move to jobs
             var field = MarchingCubesUtils.PrepareScalarField(
                 data,
                 _generateDataSO.VoxelSize,
@@ -116,6 +118,7 @@ namespace CaveCreation
             if (verts == null || verts.Count == 0)
                 return;
 
+            //TODO: reuse existing mesh
             var mesh = new Mesh
             {
                 indexFormat = UnityEngine.Rendering.IndexFormat.UInt32

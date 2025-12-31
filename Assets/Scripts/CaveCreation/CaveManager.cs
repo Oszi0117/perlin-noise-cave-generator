@@ -20,6 +20,7 @@ namespace CaveCreation
 
         public async UniTask CreateCaveAsync()
         {
+            //TODO: generate multiple chunks at once
             _chunkGenerator.Init(generateDataSO: _caveCreationData);
             await _chunkGenerator.GenerateCave();
             _chunkSpawner.Init(_caveCreationData, _meshFilter);
