@@ -1,9 +1,10 @@
 ﻿using System;
+using UnityEngine;
 
 namespace CaveCreation.Data
 {
     [Serializable]
-    public struct ChunkData
+    public class ChunkData
     {
         public int Index;
         public VoxelData[] Voxels;

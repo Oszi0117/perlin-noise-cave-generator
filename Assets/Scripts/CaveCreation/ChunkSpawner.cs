@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using CaveCreation.Data;
 using CaveCreation.GenerationData;
+using RuntimeData;
 using UnityEngine;
 using Utils;
 
@@ -10,18 +11,17 @@ namespace CaveCreation
     public class ChunkSpawner
     {
         private CaveCreationDataSO _generateDataSO;
-        private MeshFilter _meshFilter;
         private float _isoLevel => _generateDataSO.IsoLevel;
         private MarchingHelperData _helperData;
 
-        public void Init(CaveCreationDataSO generateDataSO, MeshFilter meshFilter)
+        public void Init(CaveCreationDataSO generateDataSO)
         {
             _generateDataSO = generateDataSO;
-            _meshFilter = meshFilter;
             _helperData = new MarchingHelperData();
+            CaveRuntimeData.Instance.ChunkObjects = new List<GameObject>();
         }
 
-        public void SpawnChunk(VoxelData[] data)
+        public void SpawnChunk(VoxelData[] data, Transform parent)
         {
             //TODO: move to jobs
             var field = MarchingCubesUtils.PrepareScalarField(
@@ -42,8 +42,11 @@ namespace CaveCreation
                 for (int y = 0; y < _helperData.Height - 1; y++)
                     for (int z = 0; z < _helperData.Depth - 1; z++)
                         MarchCube(x, y, z, field, _generateDataSO.VoxelSize, vertices, triangles);
-            
-            UpdateMesh(vertices, triangles);
+
+            var mesh = UpdateMesh(vertices, triangles);
+            var chunkObj = Object.Instantiate(_generateDataSO.ChunkPrefab, parent);
+            chunkObj.GetComponent<MeshFilter>().mesh = mesh;
+            CaveRuntimeData.Instance.ChunkObjects.Add(chunkObj);
         }
 
         private void MarchCube(int x, int y, int z, float[] field, float cubeSize, List<Vector3> verts, List<int> tris)
@@ -113,16 +116,12 @@ namespace CaveCreation
             }
         }
 
-        private void UpdateMesh(List<Vector3> verts, List<int> tris)
+        private Mesh UpdateMesh(List<Vector3> verts, List<int> tris)
         {
             if (verts == null || verts.Count == 0)
-                return;
+                return null;
 
-            //TODO: reuse existing mesh
-            var mesh = new Mesh
-            {
-                indexFormat = UnityEngine.Rendering.IndexFormat.UInt32
-            };
+            var mesh = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
 
             mesh.SetVertices(verts);
             mesh.SetTriangles(tris, 0);
@@ -130,7 +129,7 @@ namespace CaveCreation
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
 
-            _meshFilter.sharedMesh = mesh;
+            return mesh;
         }
 
         private struct MarchingHelperData

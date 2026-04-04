@@ -6,8 +6,8 @@ namespace RuntimeData
 {
     public class CaveRuntimeData : RuntimeData<CaveRuntimeData>
     {
+        public GameObject CaveParent;
         public List<ChunkData> Chunks;
         public List<GameObject> ChunkObjects;
-        public List<GameObject> VoxelObjects;
     }
 }

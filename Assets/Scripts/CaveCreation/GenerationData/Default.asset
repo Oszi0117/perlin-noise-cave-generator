@@ -12,11 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e9a9000e9d28d9142a072bd15fa8cd73, type: 3}
   m_Name: Default
   m_EditorClassIdentifier: 
-  ChunkOrigin: {x: 0, y: 0, z: 0}
+  GridSize: {x: 2, y: 2, z: 2}
+  CaveOrigin: {x: 0, y: 0, z: 0}
+  ChunkPrefab: {fileID: 3641658353688913044, guid: 00aeaa1f9f75add4689640050b0c0bbf, type: 3}
   VoxelSize: 1
   ChunkSize: {x: 100, y: 100, z: 100}
   NoiseScale: {x: 0.02, y: 0.02, z: 0.02}
-  Seed: 3333
+  Seed: 2137
   Octaves: 4
   Lacunarity: 2
   Persistence: 0.5

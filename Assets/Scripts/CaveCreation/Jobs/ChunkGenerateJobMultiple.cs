@@ -1,4 +1,4 @@
-﻿using Unity.Burst;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -7,12 +7,15 @@ using Utils;
 namespace CaveCreation.Jobs
 {
     [BurstCompile]
-    public struct ChunkGenerateJobs : IJobParallelFor
+    public struct ChunkGenerateJobMultiple : IJobParallelFor
     {
-        [WriteOnly] public NativeArray<NativeList<float4>> Result;
+        //[NativeDisableParallelForRestriction] allows multiple jobs to write to the same native collection (gotta handle race conditions by yourself)
+        [NativeDisableParallelForRestriction, WriteOnly]
+        public NativeArray<float4> Result;
+
         [ReadOnly] public MultipleChunkGenerateData Data;
 
-        public ChunkGenerateJobs(NativeArray<NativeList<float4>> result, MultipleChunkGenerateData data)
+        public ChunkGenerateJobMultiple(NativeArray<float4> result, MultipleChunkGenerateData data)
         {
             Result = result;
             Data = data;
@@ -20,8 +23,10 @@ namespace CaveCreation.Jobs
 
         public void Execute(int jobIndex)
         {
+            var chunkResult = new NativeList<float4>(Data.VoxelsPerChunk, Allocator.Temp);
+
             NoiseUtils.GetVoxelValues(
-                Result[jobIndex],
+                chunkResult,
                 Data.BoundsMinArray[jobIndex],
                 Data.BoundsMaxArray[jobIndex],
                 Data.VoxelSizeArray[jobIndex],
@@ -30,65 +35,12 @@ namespace CaveCreation.Jobs
                 Data.OctavesArray[jobIndex],
                 Data.LacunarityArray[jobIndex],
                 Data.PersistenceArray[jobIndex]);
-        }
-    }
 
-    [BurstCompile]
-    public struct ChunkGenerateJobSingle : IJob
-    {
-        public NativeList<float4> Result;
-        [ReadOnly] public SingleChunkGenerateData Data;
+            var startIndex = jobIndex * Data.VoxelsPerChunk;
+            for (var i = 0; i < chunkResult.Length; i++)
+                Result[startIndex + i] = chunkResult[i];
 
-        public ChunkGenerateJobSingle(SingleChunkGenerateData data)
-        {
-            Result = new NativeList<float4>(Allocator.Persistent);
-            Data = data;
-        }
-
-        public void Execute()
-        {
-            NoiseUtils.GetVoxelValues(
-                Result,
-                Data.BoundsMin,
-                Data.BoundsMax,
-                Data.VoxelSize,
-                Data.NoiseScale,
-                Data.Seed,
-                Data.Octaves,
-                Data.Lacunarity,
-                Data.Persistence);
-        }
-    }
-
-    public readonly struct SingleChunkGenerateData
-    {
-        public readonly float3 BoundsMin;
-        public readonly float3 BoundsMax;
-        public readonly float VoxelSize;
-        public readonly float3 NoiseScale;
-        public readonly int Seed;
-        public readonly int Octaves;
-        public readonly float Lacunarity;
-        public readonly float Persistence;
-
-        public SingleChunkGenerateData(
-            float3 boundsMin,
-            float3 boundsMax,
-            float voxelSize,
-            float3 noiseScale,
-            int seed,
-            int octaves,
-            float lacunarity,
-            float persistence)
-        {
-            BoundsMin = boundsMin;
-            BoundsMax = boundsMax;
-            VoxelSize = voxelSize;
-            NoiseScale = noiseScale;
-            Seed = seed;
-            Octaves = octaves;
-            Lacunarity = lacunarity;
-            Persistence = persistence;
+            chunkResult.Dispose();
         }
     }
 
@@ -102,6 +54,7 @@ namespace CaveCreation.Jobs
         public readonly NativeArray<int> OctavesArray;
         public readonly NativeArray<float> LacunarityArray;
         public readonly NativeArray<float> PersistenceArray;
+        public readonly int VoxelsPerChunk;
 
         public MultipleChunkGenerateData(
             NativeArray<float3> boundsMinArray,
@@ -111,7 +64,8 @@ namespace CaveCreation.Jobs
             NativeArray<int> seedArray,
             NativeArray<int> octavesArray,
             NativeArray<float> lacunarityArray,
-            NativeArray<float> persistenceArray)
+            NativeArray<float> persistenceArray,
+            int voxelsPerChunk)
         {
             BoundsMinArray = boundsMinArray;
             BoundsMaxArray = boundsMaxArray;
@@ -121,6 +75,7 @@ namespace CaveCreation.Jobs
             OctavesArray = octavesArray;
             LacunarityArray = lacunarityArray;
             PersistenceArray = persistenceArray;
+            VoxelsPerChunk = voxelsPerChunk;
         }
     }
 }

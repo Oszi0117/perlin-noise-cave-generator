@@ -1,30 +1,63 @@
-using System;
+using CaveCreation.Data;
 using CaveCreation.GenerationData;
 using Cysharp.Threading.Tasks;
 using RuntimeData;
 using UnityEngine;
+using System.Runtime.InteropServices;
 
 namespace CaveCreation
 {
     public class CaveManager : MonoBehaviour
     {
-        [SerializeField] private MeshFilter _meshFilter;
         [SerializeField] private CaveCreationDataSO _caveCreationData;
         private readonly ChunkGenerator _chunkGenerator = new();
         private readonly ChunkSpawner _chunkSpawner = new();
 
-        public void GenerateNewCave()
+        public void GenerateFromPreset()
         {
-            CreateCaveAsync().Forget();
+            CreateCaveAsync(_caveCreationData).Forget();
         }
 
-        public async UniTask CreateCaveAsync()
+        public void GenerateRandom()
         {
-            //TODO: generate multiple chunks at once
-            _chunkGenerator.Init(generateDataSO: _caveCreationData);
+            var rnd = CaveCreationDataSO.CreateRandomizedInstance(_caveCreationData);
+            CreateCaveAsync(rnd).Forget();
+        }
+
+        public async UniTask CreateCaveAsync(CaveCreationDataSO caveCreationData)
+        {
+            Cleanup();
+
+            var caveObj = new GameObject
+            {
+                name =
+                    $"[{caveCreationData.name}]_{caveCreationData.GridSize.x}x{caveCreationData.GridSize.y}x{caveCreationData.GridSize.z}",
+                transform = { position = Vector3.zero, rotation = Quaternion.identity, localScale = Vector3.one }
+            };
+            CaveRuntimeData.Instance.CaveParent = caveObj;
+
+            _chunkGenerator.Init(generateDataSO: caveCreationData);
+
             await _chunkGenerator.GenerateCave();
-            _chunkSpawner.Init(_caveCreationData, _meshFilter);
-            _chunkSpawner.SpawnChunk(CaveRuntimeData.Instance.Chunks[0].Voxels);
+
+            _chunkSpawner.Init(caveCreationData);
+
+            foreach (var chunk in CaveRuntimeData.Instance.Chunks)
+                _chunkSpawner.SpawnChunk(chunk.Voxels, caveObj.transform);
+        }
+
+        private void Cleanup()
+        {
+            if (CaveRuntimeData.Instance.ChunkObjects == null ||
+                CaveRuntimeData.Instance.ChunkObjects.Count == 0) return;
+
+            foreach (var oldChunk in CaveRuntimeData.Instance.ChunkObjects)
+                Destroy(oldChunk);
+
+            Destroy(CaveRuntimeData.Instance.CaveParent);
+
+            CaveRuntimeData.Instance.CaveParent = null;
+            CaveRuntimeData.Instance.ChunkObjects = null;
         }
     }
 }
