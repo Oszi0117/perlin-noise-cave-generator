@@ -1,3 +1,4 @@
+using Extensions;
 using UnityEngine;
 
 namespace RuntimeData
@@ -36,7 +37,7 @@ namespace RuntimeData
             }
             else if (_instance != this)
             {
-                Destroy(gameObject);
+                gameObject.UniversalDestroy();
             }
         }
     }

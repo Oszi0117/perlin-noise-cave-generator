@@ -4,6 +4,7 @@ using Cysharp.Threading.Tasks;
 using RuntimeData;
 using UnityEngine;
 using System.Runtime.InteropServices;
+using Extensions;
 
 namespace CaveCreation
 {
@@ -52,9 +53,9 @@ namespace CaveCreation
                 CaveRuntimeData.Instance.ChunkObjects.Count == 0) return;
 
             foreach (var oldChunk in CaveRuntimeData.Instance.ChunkObjects)
-                Destroy(oldChunk);
-
-            Destroy(CaveRuntimeData.Instance.CaveParent);
+                oldChunk.UniversalDestroy();
+            
+            CaveRuntimeData.Instance.CaveParent.UniversalDestroy();
 
             CaveRuntimeData.Instance.CaveParent = null;
             CaveRuntimeData.Instance.ChunkObjects = null;
