@@ -1,29 +1,17 @@
-using CaveCreation.Data;
+using System.Diagnostics;
 using CaveCreation.GenerationData;
 using Cysharp.Threading.Tasks;
 using RuntimeData;
 using UnityEngine;
-using System.Runtime.InteropServices;
 using Extensions;
+using Debug = UnityEngine.Debug;
 
 namespace CaveCreation
 {
     public class CaveManager : MonoBehaviour
     {
-        [SerializeField] private CaveCreationDataSO _caveCreationData;
         private readonly ChunkGenerator _chunkGenerator = new();
         private readonly ChunkSpawner _chunkSpawner = new();
-
-        public void GenerateFromPreset()
-        {
-            CreateCaveAsync(_caveCreationData).Forget();
-        }
-
-        public void GenerateRandom()
-        {
-            var rnd = CaveCreationDataSO.CreateRandomizedInstance(_caveCreationData);
-            CreateCaveAsync(rnd).Forget();
-        }
 
         public async UniTask CreateCaveAsync(CaveCreationDataSO caveCreationData)
         {
@@ -39,12 +27,13 @@ namespace CaveCreation
 
             _chunkGenerator.Init(generateDataSO: caveCreationData);
 
+            var stopwatch = Stopwatch.StartNew();
             await _chunkGenerator.GenerateCave();
-
+            Debug.Log($"GenerateCave: {stopwatch.ElapsedMilliseconds}ms");
+            
             _chunkSpawner.Init(caveCreationData);
-
-            foreach (var chunk in CaveRuntimeData.Instance.Chunks)
-                _chunkSpawner.SpawnChunk(chunk.Voxels, caveObj.transform);
+            
+            await _chunkSpawner.SpawnChunk(CaveRuntimeData.Instance.Chunks, caveObj.transform);
         }
 
         private void Cleanup()
@@ -54,11 +43,16 @@ namespace CaveCreation
 
             foreach (var oldChunk in CaveRuntimeData.Instance.ChunkObjects)
                 oldChunk.UniversalDestroy();
-            
+
             CaveRuntimeData.Instance.CaveParent.UniversalDestroy();
 
             CaveRuntimeData.Instance.CaveParent = null;
             CaveRuntimeData.Instance.ChunkObjects = null;
+        }
+
+        private void OnDestroy()
+        {
+            _chunkSpawner.Dispose();
         }
     }
 }

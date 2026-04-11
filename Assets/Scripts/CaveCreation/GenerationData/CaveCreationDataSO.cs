@@ -17,16 +17,11 @@ namespace CaveCreation.GenerationData
         [Range(0f, 1f)] public float Persistence = 0.5f;
         public float IsoLevel = 0.5f;
 
-        public static CaveCreationDataSO CreateRandomizedInstance(CaveCreationDataSO source)
+        public static CaveCreationDataSO CreateRandomizedInstance()
         {
-            if (source == null)
-            {
-                Debug.LogError($"{nameof(CreateRandomizedInstance)} failed: source is null");
-                return null;
-            }
+            var instance = CreateInstance<CaveCreationDataSO>();
 
-            var instance = Instantiate(source);
-
+            instance.ChunkPrefab = Resources.Load<GameObject>("ChunkPrefab");
             instance.NoiseScale = new Vector3(
                 Random.Range(0.001f, 0.1f),
                 Random.Range(0.001f, 0.1f),

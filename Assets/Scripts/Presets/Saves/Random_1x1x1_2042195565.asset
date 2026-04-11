@@ -10,16 +10,16 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e9a9000e9d28d9142a072bd15fa8cd73, type: 3}
-  m_Name: Default
+  m_Name: Random_1x1x1_2042195565
   m_EditorClassIdentifier: 
-  GridSize: {x: 2, y: 2, z: 2}
+  GridSize: {x: 1, y: 1, z: 1}
   CaveOrigin: {x: 0, y: 0, z: 0}
   ChunkPrefab: {fileID: 3641658353688913044, guid: 00aeaa1f9f75add4689640050b0c0bbf, type: 3}
   VoxelSize: 1
-  ChunkSize: {x: 100, y: 100, z: 100}
-  NoiseScale: {x: 0.02, y: 0.02, z: 0.02}
-  Seed: 2137
-  Octaves: 4
-  Lacunarity: 2
-  Persistence: 0.5
-  IsoLevel: 0.5
+  ChunkSize: {x: 50, y: 30, z: 50}
+  NoiseScale: {x: 0.0915079, y: 0.07935285, z: 0.05741671}
+  Seed: 2042195565
+  Octaves: 6
+  Lacunarity: 1.9819639
+  Persistence: 0.65019727
+  IsoLevel: 0.40923333

@@ -1,9 +1,16 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using CaveCreation.Data;
 using CaveCreation.GenerationData;
+using CaveCreation.Jobs;
+using Cysharp.Threading.Tasks;
 using RuntimeData;
+using Unity.Collections;
+using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
 using Utils;
+using Object = UnityEngine.Object;
 
 namespace CaveCreation
 {
@@ -12,113 +19,114 @@ namespace CaveCreation
     {
         private CaveCreationDataSO _generateDataSO;
         private float _isoLevel => _generateDataSO.IsoLevel;
-        private MarchingHelperData _helperData;
+        private NativeArray<int3> _corners;
+        private NativeArray<int> _edgeTable;
+        private NativeArray<int> _trianglesTable;
 
         public void Init(CaveCreationDataSO generateDataSO)
         {
             _generateDataSO = generateDataSO;
-            _helperData = new MarchingHelperData();
             CaveRuntimeData.Instance.ChunkObjects = new List<GameObject>();
+            if (!_corners.IsCreated)
+                _corners = new NativeArray<int3>(MarchingCubesUtils.Tables.Corners, Allocator.Persistent);
+
+            if (!_edgeTable.IsCreated)
+                _edgeTable = new NativeArray<int>(MarchingCubesUtils.Tables.EdgeTable, Allocator.Persistent);
+
+            if (!_trianglesTable.IsCreated)
+                _trianglesTable = new NativeArray<int>(MarchingCubesUtils.Tables.TrianglesTable, Allocator.Persistent);
         }
 
-        public void SpawnChunk(VoxelData[] data, Transform parent)
+        public async UniTask SpawnChunk(IReadOnlyList<ChunkData> chunks, Transform parent)
         {
-            //TODO: move to jobs
-            var field = MarchingCubesUtils.PrepareScalarField(
-                data,
-                _generateDataSO.VoxelSize,
-                out _helperData.Width,
-                out _helperData.Height,
-                out _helperData.Depth,
-                out _helperData.MinGridBounds);
-
-            if (field.Length == 0)
+            if (chunks == null || chunks.Count == 0)
                 return;
-
-            var vertices = new List<Vector3>();
-            var triangles = new List<int>();
-
-            for (int x = 0; x < _helperData.Width - 1; x++)
-                for (int y = 0; y < _helperData.Height - 1; y++)
-                    for (int z = 0; z < _helperData.Depth - 1; z++)
-                        MarchCube(x, y, z, field, _generateDataSO.VoxelSize, vertices, triangles);
-
-            var mesh = UpdateMesh(vertices, triangles);
-            var chunkObj = Object.Instantiate(_generateDataSO.ChunkPrefab, parent);
-            chunkObj.GetComponent<MeshFilter>().mesh = mesh;
-            CaveRuntimeData.Instance.ChunkObjects.Add(chunkObj);
-        }
-
-        private void MarchCube(int x, int y, int z, float[] field, float cubeSize, List<Vector3> verts, List<int> tris)
-        {
-            var cubeIndex = 0;
-            var v = new float[8];
-            var p = new Vector3[8];
-
-            for (int i = 0; i < 8; i++)
+            
+            var chunkCount = chunks.Count;
+            var voxelsPerChunk = chunks[0].Voxels?.Length ?? 0;
+            if (voxelsPerChunk == 0)
+                return;
+            
+            var flattenedVoxels = new NativeArray<float4>(chunkCount * voxelsPerChunk, Allocator.Persistent);
+            for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
             {
-                var ix = x + MarchingCubesUtils.Tables.Corners[i].x;
-                var iy = y + MarchingCubesUtils.Tables.Corners[i].y;
-                var iz = z + MarchingCubesUtils.Tables.Corners[i].z;
+                var chunkVoxels = chunks[chunkIndex].Voxels;
+                if (chunkVoxels == null || chunkVoxels.Length != voxelsPerChunk)
+                    continue;
 
-                v[i] = field[ix + iy * _helperData.Width + iz * _helperData.Width * _helperData.Height];
-
-                p[i] = new Vector3(
-                    (ix + _helperData.MinGridBounds.x) * cubeSize,
-                    (iy + _helperData.MinGridBounds.y) * cubeSize,
-                    (iz + _helperData.MinGridBounds.z) * cubeSize
-                );
-
-                if (v[i] < _isoLevel)
-                    cubeIndex |= (1 << i);
+                var chunkStart = chunkIndex * voxelsPerChunk;
+                for (var voxelIndex = 0; voxelIndex < voxelsPerChunk; voxelIndex++)
+                {
+                    var voxel = chunkVoxels[voxelIndex];
+                    flattenedVoxels[chunkStart + voxelIndex] = new float4(voxel.Position, voxel.Value);
+                }
             }
 
-            var edgeFlags = MarchingCubesUtils.Tables.EdgeTable[cubeIndex];
-            if (edgeFlags == 0 || edgeFlags == 255)
-                return;
+            var pointsCountX = math.max(1, (int)math.round(_generateDataSO.ChunkSize.x / _generateDataSO.VoxelSize)) + 1;
+            var pointsCountY = math.max(1, (int)math.round(_generateDataSO.ChunkSize.y / _generateDataSO.VoxelSize)) + 1;
+            var pointsCountZ = math.max(1, (int)math.round(_generateDataSO.ChunkSize.z / _generateDataSO.VoxelSize)) + 1;
+            var maxVerticesPerChunk = (pointsCountX - 1) * (pointsCountY - 1) * (pointsCountZ - 1) * 15;
+            var vertices = new NativeArray<float3>(chunkCount * maxVerticesPerChunk, Allocator.Persistent);
+            var triangles = new NativeArray<int>(chunkCount * maxVerticesPerChunk, Allocator.Persistent);
+            var vertexCounts = new NativeArray<int>(chunkCount, Allocator.Persistent);
+            var triangleCounts = new NativeArray<int>(chunkCount, Allocator.Persistent);
 
-            Vector3[] edgePositions = new Vector3[12];
-            if ((edgeFlags & 1) != 0)
-                edgePositions[0] = MarchingCubesUtils.Interpolate(p[0], v[0], p[1], v[1], _isoLevel);
-            if ((edgeFlags & 2) != 0)
-                edgePositions[1] = MarchingCubesUtils.Interpolate(p[1], v[1], p[2], v[2], _isoLevel);
-            if ((edgeFlags & 4) != 0)
-                edgePositions[2] = MarchingCubesUtils.Interpolate(p[2], v[2], p[3], v[3], _isoLevel);
-            if ((edgeFlags & 8) != 0)
-                edgePositions[3] = MarchingCubesUtils.Interpolate(p[3], v[3], p[0], v[0], _isoLevel);
-            if ((edgeFlags & 16) != 0)
-                edgePositions[4] = MarchingCubesUtils.Interpolate(p[4], v[4], p[5], v[5], _isoLevel);
-            if ((edgeFlags & 32) != 0)
-                edgePositions[5] = MarchingCubesUtils.Interpolate(p[5], v[5], p[6], v[6], _isoLevel);
-            if ((edgeFlags & 64) != 0)
-                edgePositions[6] = MarchingCubesUtils.Interpolate(p[6], v[6], p[7], v[7], _isoLevel);
-            if ((edgeFlags & 128) != 0)
-                edgePositions[7] = MarchingCubesUtils.Interpolate(p[7], v[7], p[4], v[4], _isoLevel);
-            if ((edgeFlags & 256) != 0)
-                edgePositions[8] = MarchingCubesUtils.Interpolate(p[0], v[0], p[4], v[4], _isoLevel);
-            if ((edgeFlags & 512) != 0)
-                edgePositions[9] = MarchingCubesUtils.Interpolate(p[1], v[1], p[5], v[5], _isoLevel);
-            if ((edgeFlags & 1024) != 0)
-                edgePositions[10] = MarchingCubesUtils.Interpolate(p[2], v[2], p[6], v[6], _isoLevel);
-            if ((edgeFlags & 2048) != 0)
-                edgePositions[11] = MarchingCubesUtils.Interpolate(p[3], v[3], p[7], v[7], _isoLevel);
-
-            for (int i = 0; MarchingCubesUtils.Tables.TrianglesTable[cubeIndex * 16 + i] != -1; i += 3)
+            var job = new ChunkSpawnJobMultiple
             {
-                var vCount = verts.Count;
-                verts.Add(edgePositions[MarchingCubesUtils.Tables.TrianglesTable[cubeIndex * 16 + i]]);
-                verts.Add(edgePositions[MarchingCubesUtils.Tables.TrianglesTable[cubeIndex * 16 + i + 1]]);
-                verts.Add(edgePositions[MarchingCubesUtils.Tables.TrianglesTable[cubeIndex * 16 + i + 2]]);
+                Voxels = flattenedVoxels,
+                Corners = _corners,
+                EdgeTable = _edgeTable,
+                TrianglesTable = _trianglesTable,
+                Vertices = vertices,
+                Triangles = triangles,
+                VertexCountPerChunk = vertexCounts,
+                TriangleCountPerChunk = triangleCounts,
+                VoxelsPerChunk = voxelsPerChunk,
+                MaxVerticesPerChunk = maxVerticesPerChunk,
+                VoxelSize = _generateDataSO.VoxelSize,
+                IsoLevel = _isoLevel
+            };
+            
+            var handle = job.Schedule(chunkCount, 1);
+            await UniTask.WaitUntil(() => handle.IsCompleted);
+            handle.Complete();
 
-                tris.Add(vCount);
-                tris.Add(vCount + 1);
-                tris.Add(vCount + 2);
+            for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
+            {
+                var vertexCount = vertexCounts[chunkIndex];
+                var triangleCount = triangleCounts[chunkIndex];
+                if (vertexCount == 0 || triangleCount == 0)
+                    continue;
+
+                var chunkStart = chunkIndex * maxVerticesPerChunk;
+                var chunkVertices = new List<Vector3>(vertexCount);
+                var chunkTriangles = new List<int>(triangleCount);
+
+                for (var vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
+                    chunkVertices.Add(vertices[chunkStart + vertexIndex]);
+
+                for (var triangleIndex = 0; triangleIndex < triangleCount; triangleIndex++)
+                    chunkTriangles.Add(triangles[chunkStart + triangleIndex]);
+
+                var mesh = UpdateMesh(chunkVertices, chunkTriangles);
+                if (mesh == null)
+                    continue;
+
+                var chunkObj = Object.Instantiate(_generateDataSO.ChunkPrefab, parent);
+                chunkObj.GetComponent<MeshFilter>().mesh = mesh;
+                CaveRuntimeData.Instance.ChunkObjects.Add(chunkObj);
             }
+            
+            flattenedVoxels.Dispose();
+            vertices.Dispose();
+            triangles.Dispose();
+            vertexCounts.Dispose();
+            triangleCounts.Dispose();
         }
 
-        private Mesh UpdateMesh(List<Vector3> verts, List<int> tris)
+        private static Mesh UpdateMesh(List<Vector3> verts, List<int> tris)
         {
-            if (verts == null || verts.Count == 0)
+            if (verts.Count == 0)
                 return null;
 
             var mesh = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
@@ -132,12 +140,14 @@ namespace CaveCreation
             return mesh;
         }
 
-        private struct MarchingHelperData
+        public void Dispose()
         {
-            public int Width;
-            public int Height;
-            public int Depth;
-            public Vector3Int MinGridBounds;
+            if (_corners.IsCreated)
+                _corners.Dispose();
+            if (_edgeTable.IsCreated)
+                _edgeTable.Dispose();
+            if (_trianglesTable.IsCreated)
+                _trianglesTable.Dispose();
         }
     }
 }
