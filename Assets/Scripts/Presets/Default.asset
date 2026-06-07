@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e9a9000e9d28d9142a072bd15fa8cd73, type: 3}
   m_Name: Default
   m_EditorClassIdentifier: 
-  GridSize: {x: 1, y: 1, z: 1}
+  GridSize: {x: 3, y: 1, z: 6}
   CaveOrigin: {x: 0, y: 0, z: 0}
   ChunkPrefab: {fileID: 3641658353688913044, guid: 00aeaa1f9f75add4689640050b0c0bbf, type: 3}
   VoxelSize: 1
@@ -23,3 +23,18 @@ MonoBehaviour:
   Lacunarity: 2
   Persistence: 0.5
   IsoLevel: 0.5
+  ClosureExtensionInVoxels: 8
+  ClosureWallSmoothingDistanceInVoxels: 6
+  ClosureWallNoiseExtensionInVoxels: 1
+  ClosureWallDetailOctavesOffset: 0
+  ClosureWallNoiseBlend: 0.1
+  ClosureWallStrength: 0.9
+  ClosureBandInVoxels: 12
+  ClosureMinNormalizedBand: 0.08
+  ClosureMaxNormalizedBand: 0.35
+  ClosureHardening: 1.5
+  ClosureRockLumpSizeInVoxels: 16
+  ClosureRockDetailSizeInVoxels: 10
+  ClosureRockRadiusAmplitude: 0.2
+  ClosureRockDensityVariation: 0.2
+  ClosureHardSealValue: 0.01

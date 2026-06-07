@@ -34,6 +34,8 @@ namespace CaveCreation
             var chunkCount = chunkOrigins.Count;
             var chunkSize = new float3(_generateDataSO.ChunkSize.x, _generateDataSO.ChunkSize.y,
                 _generateDataSO.ChunkSize.z);
+            var normalizedVoxelSize = _generateDataSO.VoxelSize <= 0f ? 1f : _generateDataSO.VoxelSize;
+            var closureExtension = normalizedVoxelSize * Mathf.Max(0f, _generateDataSO.ClosureExtensionInVoxels);
 
             var boundsMinArray = new NativeArray<float3>(chunkCount, Allocator.Persistent);
             var boundsMaxArray = new NativeArray<float3>(chunkCount, Allocator.Persistent);
@@ -43,33 +45,100 @@ namespace CaveCreation
             var octavesArray = new NativeArray<int>(chunkCount, Allocator.Persistent);
             var lacunarityArray = new NativeArray<float>(chunkCount, Allocator.Persistent);
             var persistenceArray = new NativeArray<float>(chunkCount, Allocator.Persistent);
+            var closureBoundsMinArray = new NativeArray<float3>(chunkCount, Allocator.Persistent);
+            var closureBoundsMaxArray = new NativeArray<float3>(chunkCount, Allocator.Persistent);
+            var openFaceMaskArray = new NativeArray<byte>(chunkCount, Allocator.Persistent);
+            var voxelStartIndexArray = new NativeArray<int>(chunkCount, Allocator.Persistent);
+            var voxelCountArray = new NativeArray<int>(chunkCount, Allocator.Persistent);
+
+            var safeGridX = Mathf.Max(1, _generateDataSO.GridSize.x);
+            var safeGridY = Mathf.Max(1, _generateDataSO.GridSize.y);
+            var safeGridZ = Mathf.Max(1, _generateDataSO.GridSize.z);
+            var closureBoundsMin = new float3(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
+            var closureBoundsMax = new float3(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
+            var totalVoxelCount = 0;
 
             for (var i = 0; i < chunkCount; i++)
             {
                 var halfSize = chunkSize * 0.5f;
-                boundsMinArray[i] = chunkOrigins[i] - halfSize;
-                boundsMaxArray[i] = chunkOrigins[i] + halfSize;
-                voxelSizeArray[i] = _generateDataSO.VoxelSize;
+                var boundsMin = chunkOrigins[i] - halfSize;
+                var boundsMax = chunkOrigins[i] + halfSize;
+
+                var x = i % safeGridX;
+                var y = (i / safeGridX) % safeGridY;
+                var z = i / (safeGridX * safeGridY);
+
+                byte openFaceMask = 0;
+                if (x == 0)
+                    openFaceMask |= 1 << 0;
+                if (x == safeGridX - 1)
+                    openFaceMask |= 1 << 1;
+                if (y == 0)
+                    openFaceMask |= 1 << 2;
+                if (y == safeGridY - 1)
+                    openFaceMask |= 1 << 3;
+                if (z == 0)
+                    openFaceMask |= 1 << 4;
+                if (z == safeGridZ - 1)
+                    openFaceMask |= 1 << 5;
+
+                var extendedBoundsMin = boundsMin;
+                var extendedBoundsMax = boundsMax;
+                if ((openFaceMask & (1 << 0)) != 0)
+                    extendedBoundsMin.x -= closureExtension;
+                if ((openFaceMask & (1 << 1)) != 0)
+                    extendedBoundsMax.x += closureExtension;
+                if ((openFaceMask & (1 << 2)) != 0)
+                    extendedBoundsMin.y -= closureExtension;
+                if ((openFaceMask & (1 << 3)) != 0)
+                    extendedBoundsMax.y += closureExtension;
+                if ((openFaceMask & (1 << 4)) != 0)
+                    extendedBoundsMin.z -= closureExtension;
+                if ((openFaceMask & (1 << 5)) != 0)
+                    extendedBoundsMax.z += closureExtension;
+
+                boundsMinArray[i] = extendedBoundsMin;
+                boundsMaxArray[i] = extendedBoundsMax;
+                closureBoundsMin = math.min(closureBoundsMin, extendedBoundsMin);
+                closureBoundsMax = math.max(closureBoundsMax, extendedBoundsMax);
+                voxelSizeArray[i] = normalizedVoxelSize;
                 noiseScaleArray[i] = _generateDataSO.NoiseScale;
                 seedArray[i] = _generateDataSO.Seed;
                 octavesArray[i] = _generateDataSO.Octaves;
                 lacunarityArray[i] = _generateDataSO.Lacunarity;
                 persistenceArray[i] = _generateDataSO.Persistence;
+                openFaceMaskArray[i] = openFaceMask;
+
+                var voxelCount = CalculateVoxelCount(extendedBoundsMax - extendedBoundsMin, normalizedVoxelSize);
+                voxelStartIndexArray[i] = totalVoxelCount;
+                voxelCountArray[i] = voxelCount;
+                totalVoxelCount += voxelCount;
             }
 
-            var voxelsPerChunk = CalculateVoxelCount(chunkSize, _generateDataSO.VoxelSize);
-            var voxelsNative = new NativeArray<float4>(chunkCount * voxelsPerChunk, Allocator.Persistent);
+            for (var i = 0; i < chunkCount; i++)
+            {
+                closureBoundsMinArray[i] = closureBoundsMin;
+                closureBoundsMaxArray[i] = closureBoundsMax;
+            }
+
+            var voxelsNative = new NativeArray<float4>(totalVoxelCount, Allocator.Persistent);
 
             var data = new MultipleChunkGenerateData(
                 boundsMinArray,
                 boundsMaxArray,
+                closureBoundsMinArray,
+                closureBoundsMaxArray,
                 voxelSizeArray,
                 noiseScaleArray,
                 seedArray,
                 octavesArray,
                 lacunarityArray,
                 persistenceArray,
-                voxelsPerChunk);
+                openFaceMaskArray,
+                _generateDataSO.IsoLevel,
+                _generateDataSO.GetClosureSettings(),
+                voxelStartIndexArray,
+                voxelCountArray);
 
             var job = new ChunkGenerateJobMultiple(voxelsNative, data);
             var handle = job.Schedule(chunkCount, 1);
@@ -80,10 +149,11 @@ namespace CaveCreation
             var chunks = new List<ChunkData>(chunkCount);
             for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
             {
-                var chunkVoxelsManaged = new VoxelData[voxelsPerChunk];
-                var startIndex = chunkIndex * voxelsPerChunk;
+                var voxelCount = voxelCountArray[chunkIndex];
+                var chunkVoxelsManaged = new VoxelData[voxelCount];
+                var startIndex = voxelStartIndexArray[chunkIndex];
 
-                for (var voxelIndex = 0; voxelIndex < voxelsPerChunk; voxelIndex++)
+                for (var voxelIndex = 0; voxelIndex < voxelCount; voxelIndex++)
                 {
                     var p = voxelsNative[startIndex + voxelIndex];
                     chunkVoxelsManaged[voxelIndex] = new VoxelData(p.xyz, p.w);
@@ -95,16 +165,21 @@ namespace CaveCreation
             voxelsNative.Dispose();
             boundsMinArray.Dispose();
             boundsMaxArray.Dispose();
+            closureBoundsMinArray.Dispose();
+            closureBoundsMaxArray.Dispose();
             voxelSizeArray.Dispose();
             noiseScaleArray.Dispose();
             seedArray.Dispose();
             octavesArray.Dispose();
             lacunarityArray.Dispose();
             persistenceArray.Dispose();
+            openFaceMaskArray.Dispose();
+            voxelStartIndexArray.Dispose();
+            voxelCountArray.Dispose();
 
             CaveRuntimeData.Instance.Chunks = chunks;
         }
-        
+
         private static int CalculateVoxelCount(float3 chunkSize, float voxelSize)
         {
             var normalizedVoxelSize = voxelSize <= 0f ? 1f : voxelSize;

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using CaveCreation.Data;
 using CaveCreation.GenerationData;
 using CaveCreation.Jobs;
@@ -43,31 +42,48 @@ namespace CaveCreation
                 return;
             
             var chunkCount = chunks.Count;
-            var voxelsPerChunk = chunks[0].Voxels?.Length ?? 0;
-            if (voxelsPerChunk == 0)
+            var totalVoxelCount = 0;
+            var totalMaxVertexCount = 0;
+            var voxelStartIndexPerChunk = new NativeArray<int>(chunkCount, Allocator.Persistent);
+            var voxelCountPerChunk = new NativeArray<int>(chunkCount, Allocator.Persistent);
+            var vertexStartIndexPerChunk = new NativeArray<int>(chunkCount, Allocator.Persistent);
+
+            for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
+            {
+                var voxelCount = chunks[chunkIndex].Voxels?.Length ?? 0;
+                voxelStartIndexPerChunk[chunkIndex] = totalVoxelCount;
+                voxelCountPerChunk[chunkIndex] = voxelCount;
+                totalVoxelCount += voxelCount;
+
+                vertexStartIndexPerChunk[chunkIndex] = totalMaxVertexCount;
+                totalMaxVertexCount += CalculateMaxVertices(chunks[chunkIndex].Voxels, _generateDataSO.VoxelSize);
+            }
+
+            if (totalVoxelCount == 0 || totalMaxVertexCount == 0)
+            {
+                voxelStartIndexPerChunk.Dispose();
+                voxelCountPerChunk.Dispose();
+                vertexStartIndexPerChunk.Dispose();
                 return;
+            }
             
-            var flattenedVoxels = new NativeArray<float4>(chunkCount * voxelsPerChunk, Allocator.Persistent);
+            var flattenedVoxels = new NativeArray<float4>(totalVoxelCount, Allocator.Persistent);
             for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
             {
                 var chunkVoxels = chunks[chunkIndex].Voxels;
-                if (chunkVoxels == null || chunkVoxels.Length != voxelsPerChunk)
+                if (chunkVoxels == null || chunkVoxels.Length == 0)
                     continue;
 
-                var chunkStart = chunkIndex * voxelsPerChunk;
-                for (var voxelIndex = 0; voxelIndex < voxelsPerChunk; voxelIndex++)
+                var chunkStart = voxelStartIndexPerChunk[chunkIndex];
+                for (var voxelIndex = 0; voxelIndex < chunkVoxels.Length; voxelIndex++)
                 {
                     var voxel = chunkVoxels[voxelIndex];
                     flattenedVoxels[chunkStart + voxelIndex] = new float4(voxel.Position, voxel.Value);
                 }
             }
 
-            var pointsCountX = math.max(1, (int)math.round(_generateDataSO.ChunkSize.x / _generateDataSO.VoxelSize)) + 1;
-            var pointsCountY = math.max(1, (int)math.round(_generateDataSO.ChunkSize.y / _generateDataSO.VoxelSize)) + 1;
-            var pointsCountZ = math.max(1, (int)math.round(_generateDataSO.ChunkSize.z / _generateDataSO.VoxelSize)) + 1;
-            var maxVerticesPerChunk = (pointsCountX - 1) * (pointsCountY - 1) * (pointsCountZ - 1) * 15;
-            var vertices = new NativeArray<float3>(chunkCount * maxVerticesPerChunk, Allocator.Persistent);
-            var triangles = new NativeArray<int>(chunkCount * maxVerticesPerChunk, Allocator.Persistent);
+            var vertices = new NativeArray<float3>(totalMaxVertexCount, Allocator.Persistent);
+            var triangles = new NativeArray<int>(totalMaxVertexCount, Allocator.Persistent);
             var vertexCounts = new NativeArray<int>(chunkCount, Allocator.Persistent);
             var triangleCounts = new NativeArray<int>(chunkCount, Allocator.Persistent);
 
@@ -77,12 +93,13 @@ namespace CaveCreation
                 Corners = _corners,
                 EdgeTable = _edgeTable,
                 TrianglesTable = _trianglesTable,
+                VoxelStartIndexPerChunk = voxelStartIndexPerChunk,
+                VoxelCountPerChunk = voxelCountPerChunk,
+                VertexStartIndexPerChunk = vertexStartIndexPerChunk,
                 Vertices = vertices,
                 Triangles = triangles,
                 VertexCountPerChunk = vertexCounts,
                 TriangleCountPerChunk = triangleCounts,
-                VoxelsPerChunk = voxelsPerChunk,
-                MaxVerticesPerChunk = maxVerticesPerChunk,
                 VoxelSize = _generateDataSO.VoxelSize,
                 IsoLevel = _isoLevel
             };
@@ -98,7 +115,7 @@ namespace CaveCreation
                 if (vertexCount == 0 || triangleCount == 0)
                     continue;
 
-                var chunkStart = chunkIndex * maxVerticesPerChunk;
+                var chunkStart = vertexStartIndexPerChunk[chunkIndex];
                 var chunkVertices = new List<Vector3>(vertexCount);
                 var chunkTriangles = new List<int>(triangleCount);
 
@@ -122,6 +139,9 @@ namespace CaveCreation
             triangles.Dispose();
             vertexCounts.Dispose();
             triangleCounts.Dispose();
+            voxelStartIndexPerChunk.Dispose();
+            voxelCountPerChunk.Dispose();
+            vertexStartIndexPerChunk.Dispose();
         }
 
         private static Mesh UpdateMesh(List<Vector3> verts, List<int> tris)
@@ -138,6 +158,29 @@ namespace CaveCreation
             mesh.RecalculateBounds();
 
             return mesh;
+        }
+        
+        private static int CalculateMaxVertices(VoxelData[] voxels, float voxelSize)
+        {
+            if (voxels == null || voxels.Length == 0)
+                return 0;
+
+            var normalizedVoxelSize = voxelSize <= 0f ? 1f : voxelSize;
+            var min = voxels[0].Position;
+            var max = min;
+
+            for (var i = 1; i < voxels.Length; i++)
+            {
+                var position = voxels[i].Position;
+                min = math.min(min, position);
+                max = math.max(max, position);
+            }
+
+            var pointsCountX = math.max(1, (int)math.round((max.x - min.x) / normalizedVoxelSize)) + 1;
+            var pointsCountY = math.max(1, (int)math.round((max.y - min.y) / normalizedVoxelSize)) + 1;
+            var pointsCountZ = math.max(1, (int)math.round((max.z - min.z) / normalizedVoxelSize)) + 1;
+
+            return (pointsCountX - 1) * (pointsCountY - 1) * (pointsCountZ - 1) * 15;
         }
 
         public void Dispose()

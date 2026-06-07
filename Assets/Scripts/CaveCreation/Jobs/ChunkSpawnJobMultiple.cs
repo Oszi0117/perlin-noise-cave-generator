@@ -12,6 +12,9 @@ namespace CaveCreation.Jobs
         [ReadOnly] public NativeArray<int3> Corners;
         [ReadOnly] public NativeArray<int> EdgeTable;
         [ReadOnly] public NativeArray<int> TrianglesTable;
+        [ReadOnly] public NativeArray<int> VoxelStartIndexPerChunk;
+        [ReadOnly] public NativeArray<int> VoxelCountPerChunk;
+        [ReadOnly] public NativeArray<int> VertexStartIndexPerChunk;
 
         [NativeDisableParallelForRestriction] public NativeArray<float3> Vertices;
         [NativeDisableParallelForRestriction] public NativeArray<int> Triangles;
@@ -19,15 +22,14 @@ namespace CaveCreation.Jobs
         [WriteOnly] public NativeArray<int> VertexCountPerChunk;
         [WriteOnly] public NativeArray<int> TriangleCountPerChunk;
 
-        public int VoxelsPerChunk;
-        public int MaxVerticesPerChunk;
         public float VoxelSize;
         public float IsoLevel;
 
         public void Execute(int chunkIndex)
         {
-            var chunkStart = chunkIndex * VoxelsPerChunk;
-            if (VoxelsPerChunk <= 0)
+            var chunkStart = VoxelStartIndexPerChunk[chunkIndex];
+            var voxelsPerChunk = VoxelCountPerChunk[chunkIndex];
+            if (voxelsPerChunk <= 0)
             {
                 VertexCountPerChunk[chunkIndex] = 0;
                 TriangleCountPerChunk[chunkIndex] = 0;
@@ -36,7 +38,7 @@ namespace CaveCreation.Jobs
 
             var min = Voxels[chunkStart].xyz;
             var max = min;
-            for (var i = 1; i < VoxelsPerChunk; i++)
+            for (var i = 1; i < voxelsPerChunk; i++)
             {
                 var voxelPosition = Voxels[chunkStart + i].xyz;
                 min = math.min(min, voxelPosition);
@@ -60,7 +62,7 @@ namespace CaveCreation.Jobs
             }
 
             var field = new NativeArray<float>(width * height * depth, Allocator.Temp);
-            for (var i = 0; i < VoxelsPerChunk; i++)
+            for (var i = 0; i < voxelsPerChunk; i++)
             {
                 var voxel = Voxels[chunkStart + i];
                 var lx = (int)math.round(voxel.x / VoxelSize) - minGridBounds.x;
@@ -74,7 +76,7 @@ namespace CaveCreation.Jobs
                 field[fieldIndex] = voxel.w;
             }
 
-            var chunkVertexBase = chunkIndex * MaxVerticesPerChunk;
+            var chunkVertexBase = VertexStartIndexPerChunk[chunkIndex];
             var localVertexCount = 0;
             var localTriangleCount = 0;
 
