@@ -1,8 +1,8 @@
 using CaveCreation.GenerationData;
-using Unity.Burst;
 using Unity.Collections;
-using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Burst;
+using Unity.Jobs;
 using Utils;
 
 namespace CaveCreation.Jobs

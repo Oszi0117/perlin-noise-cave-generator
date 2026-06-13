@@ -1,10 +1,10 @@
-using System.Diagnostics;
 using CaveCreation.GenerationData;
+using Debug = UnityEngine.Debug;
 using Cysharp.Threading.Tasks;
+using System.Diagnostics;
 using RuntimeData;
 using UnityEngine;
 using Extensions;
-using Debug = UnityEngine.Debug;
 
 namespace CaveCreation
 {

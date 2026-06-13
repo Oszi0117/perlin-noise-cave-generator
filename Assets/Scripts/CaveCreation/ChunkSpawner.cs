@@ -1,15 +1,15 @@
-﻿using System.Collections.Generic;
-using CaveCreation.Data;
+﻿using Object = UnityEngine.Object;
 using CaveCreation.GenerationData;
-using CaveCreation.Jobs;
+using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
-using RuntimeData;
+using CaveCreation.Data;
+using CaveCreation.Jobs;
 using Unity.Collections;
-using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using RuntimeData;
+using Unity.Jobs;
 using Utils;
-using Object = UnityEngine.Object;
 
 namespace CaveCreation
 {
@@ -27,13 +27,13 @@ namespace CaveCreation
             _generateDataSO = generateDataSO;
             CaveRuntimeData.Instance.ChunkObjects = new List<GameObject>();
             if (!_corners.IsCreated)
-                _corners = new NativeArray<int3>(MarchingCubesUtils.Tables.Corners, Allocator.Persistent);
+                _corners = new NativeArray<int3>(MarchingCubeTables.Corners, Allocator.Persistent);
 
             if (!_edgeTable.IsCreated)
-                _edgeTable = new NativeArray<int>(MarchingCubesUtils.Tables.EdgeTable, Allocator.Persistent);
+                _edgeTable = new NativeArray<int>(MarchingCubeTables.EdgeTable, Allocator.Persistent);
 
             if (!_trianglesTable.IsCreated)
-                _trianglesTable = new NativeArray<int>(MarchingCubesUtils.Tables.TrianglesTable, Allocator.Persistent);
+                _trianglesTable = new NativeArray<int>(MarchingCubeTables.TrianglesTable, Allocator.Persistent);
         }
 
         public async UniTask SpawnChunk(IReadOnlyList<ChunkData> chunks, Transform parent)

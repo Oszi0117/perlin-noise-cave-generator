@@ -1,8 +1,8 @@
 using System.Runtime.CompilerServices;
 using CaveCreation.GenerationData;
-using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
+using Unity.Burst;
 
 namespace Utils
 {
