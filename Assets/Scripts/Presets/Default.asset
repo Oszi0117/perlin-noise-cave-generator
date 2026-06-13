@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GridSize: {x: 3, y: 1, z: 6}
   CaveOrigin: {x: 0, y: 0, z: 0}
+  CaveSize: {x: 500, y: 500, z: 500}
   ChunkPrefab: {fileID: 3641658353688913044, guid: 00aeaa1f9f75add4689640050b0c0bbf, type: 3}
   VoxelSize: 1
   ChunkSize: {x: 100, y: 100, z: 100}
@@ -23,6 +24,17 @@ MonoBehaviour:
   Lacunarity: 2
   Persistence: 0.5
   IsoLevel: 0.5
+  SmallRoomChunks:
+    Amount: 4
+    SizeRange: {x: 50, y: 70}
+  MediumRoomChunks:
+    Amount: 3
+    SizeRange: {x: 60, y: 100}
+  LargeRoomChunks:
+    Amount: 4
+    SizeRange: {x: 200, y: 180}
+  RoomChunkPlacementAttempts: 8
+  RoomChunkHeightScaleRange: {x: 0.6, y: 1.1}
   ClosureExtensionInVoxels: 8
   ClosureWallSmoothingDistanceInVoxels: 6
   ClosureWallNoiseExtensionInVoxels: 1

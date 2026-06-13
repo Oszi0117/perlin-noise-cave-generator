@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace CaveCreation.GenerationData
@@ -5,8 +6,11 @@ namespace CaveCreation.GenerationData
     [CreateAssetMenu(fileName = "GenerationDataSO", menuName = "Generation Data")]
     public class CaveCreationDataSO : ScriptableObject
     {
+        [HideInInspector]
         public Vector3Int GridSize = Vector3Int.one;
         public Vector3 CaveOrigin;
+        [Tooltip("World-space bounds of the full cave system. Example: 300x100x600 creates a long cave volume.")]
+        [Min(1f)] public Vector3 CaveSize = new(300, 100, 600);
         public GameObject ChunkPrefab;
         public float VoxelSize = 1f;
         public Vector3 ChunkSize = new(50, 30, 50);
@@ -16,6 +20,18 @@ namespace CaveCreation.GenerationData
         [Min(1f)] public float Lacunarity = 2f;
         [Range(0f, 1f)] public float Persistence = 0.5f;
         public float IsoLevel = 0.5f;
+
+        [Header("Room Chunks")]
+        [Tooltip("Small room chunks placed inside CaveSize. Example: 8 chunks sized 25-45.")]
+        public RoomChunkTypeSettings SmallRoomChunks = new(8, new Vector2(25f, 45f));
+        [Tooltip("Medium room chunks placed inside CaveSize. Example: 5 chunks sized 50-80.")]
+        public RoomChunkTypeSettings MediumRoomChunks = new(5, new Vector2(50f, 80f));
+        [Tooltip("Large room chunks placed inside CaveSize. Example: 2 chunks sized 90-140.")]
+        public RoomChunkTypeSettings LargeRoomChunks = new(2, new Vector2(90f, 140f));
+        [Tooltip("Random candidates tested for each room chunk. Example: 16 spreads chunks apart better than 1.")]
+        [Min(1)] public int RoomChunkPlacementAttempts = 16;
+        [Tooltip("Vertical scale applied to room chunk size. Example: 0.6-1.1 creates flatter or taller chunks.")]
+        public Vector2 RoomChunkHeightScaleRange = new(0.6f, 1.1f);
 
         [Header("Closure")]
         [Tooltip("How many voxels open chunk sides extend outward for rounded caps. Example: 8 gives room for a visible sphere-like end.")]
@@ -74,17 +90,33 @@ namespace CaveCreation.GenerationData
 
             instance.ChunkPrefab = Resources.Load<GameObject>("ChunkPrefab");
             instance.NoiseScale = new Vector3(
-                Random.Range(0.001f, 0.1f),
-                Random.Range(0.001f, 0.1f),
-                Random.Range(0.001f, 0.1f)
+                UnityEngine.Random.Range(0.001f, 0.1f),
+                UnityEngine.Random.Range(0.001f, 0.1f),
+                UnityEngine.Random.Range(0.001f, 0.1f)
             );
-            instance.Seed = Random.Range(int.MinValue, int.MaxValue);
-            instance.Octaves = Random.Range(1, 33);
-            instance.Lacunarity = Random.Range(1f, 16f);
-            instance.Persistence = Random.Range(0f, 1f);
-            instance.IsoLevel = Random.Range(0.1f, 1f);
+            instance.Seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
+            instance.Octaves = UnityEngine.Random.Range(1, 33);
+            instance.Lacunarity = UnityEngine.Random.Range(1f, 16f);
+            instance.Persistence = UnityEngine.Random.Range(0f, 1f);
+            instance.IsoLevel = UnityEngine.Random.Range(0.1f, 1f);
+            instance.SmallRoomChunks.Amount = UnityEngine.Random.Range(4, 10);
+            instance.MediumRoomChunks.Amount = UnityEngine.Random.Range(2, 7);
+            instance.LargeRoomChunks.Amount = UnityEngine.Random.Range(1, 4);
 
             return instance;
+        }
+    }
+
+    [Serializable]
+    public struct RoomChunkTypeSettings
+    {
+        [Min(0)] public int Amount;
+        public Vector2 SizeRange;
+
+        public RoomChunkTypeSettings(int amount, Vector2 sizeRange)
+        {
+            Amount = amount;
+            SizeRange = sizeRange;
         }
     }
     

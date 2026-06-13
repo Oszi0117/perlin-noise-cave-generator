@@ -35,7 +35,7 @@ namespace Presets
 
         private static string GenerateUniqueAssetPath(CaveCreationDataSO asset)
         {
-            var assetName = $"Random_{asset.GridSize.x}x{asset.GridSize.y}x{asset.GridSize.z}_{asset.Seed}.asset";
+            var assetName = $"Random_{Mathf.RoundToInt(asset.CaveSize.x)}x{Mathf.RoundToInt(asset.CaveSize.y)}x{Mathf.RoundToInt(asset.CaveSize.z)}_{asset.Seed}.asset";
             var assetPath = SAVES_PATH + assetName;
             return AssetDatabase.GenerateUniqueAssetPath(assetPath);
         }

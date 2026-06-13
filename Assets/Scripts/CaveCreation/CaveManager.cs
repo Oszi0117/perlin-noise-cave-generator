@@ -20,7 +20,7 @@ namespace CaveCreation
             var caveObj = new GameObject
             {
                 name =
-                    $"[{caveCreationData.name}]_{caveCreationData.GridSize.x}x{caveCreationData.GridSize.y}x{caveCreationData.GridSize.z}",
+                    $"[{caveCreationData.name}]_{Mathf.RoundToInt(caveCreationData.CaveSize.x)}x{Mathf.RoundToInt(caveCreationData.CaveSize.y)}x{Mathf.RoundToInt(caveCreationData.CaveSize.z)}",
                 transform = { position = Vector3.zero, rotation = Quaternion.identity, localScale = Vector3.one }
             };
             CaveRuntimeData.Instance.CaveParent = caveObj;

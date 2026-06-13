@@ -369,7 +369,7 @@ namespace Utils
 
             return math.clamp(signedLump * 0.65f + stonePeak * 0.8f - 0.25f, -1f, 1f);
         }
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int FastFloor(float value)
         {

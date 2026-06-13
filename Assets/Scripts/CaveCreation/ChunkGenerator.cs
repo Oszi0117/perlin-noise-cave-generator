@@ -24,18 +24,21 @@ namespace CaveCreation
 
         public async UniTask GenerateCave()
         {
-            var chunkOrigins = BuildChunkOrigins();
-            if (chunkOrigins == null || chunkOrigins.Count == 0)
+            var chunkSize = new float3(_generateDataSO.ChunkSize.x, _generateDataSO.ChunkSize.y,
+                _generateDataSO.ChunkSize.z);
+            var normalizedVoxelSize = _generateDataSO.VoxelSize <= 0f ? 1f : _generateDataSO.VoxelSize;
+            var closureExtension = normalizedVoxelSize * Mathf.Max(0f, _generateDataSO.ClosureExtensionInVoxels);
+            var chunkBounds = BuildRoomChunkBounds(
+                chunkSize,
+                normalizedVoxelSize);
+
+            if (chunkBounds.Count == 0)
             {
                 CaveRuntimeData.Instance.Chunks = new List<ChunkData>();
                 return;
             }
 
-            var chunkCount = chunkOrigins.Count;
-            var chunkSize = new float3(_generateDataSO.ChunkSize.x, _generateDataSO.ChunkSize.y,
-                _generateDataSO.ChunkSize.z);
-            var normalizedVoxelSize = _generateDataSO.VoxelSize <= 0f ? 1f : _generateDataSO.VoxelSize;
-            var closureExtension = normalizedVoxelSize * Mathf.Max(0f, _generateDataSO.ClosureExtensionInVoxels);
+            var chunkCount = chunkBounds.Count;
 
             var boundsMinArray = new NativeArray<float3>(chunkCount, Allocator.Persistent);
             var boundsMaxArray = new NativeArray<float3>(chunkCount, Allocator.Persistent);
@@ -51,56 +54,23 @@ namespace CaveCreation
             var voxelStartIndexArray = new NativeArray<int>(chunkCount, Allocator.Persistent);
             var voxelCountArray = new NativeArray<int>(chunkCount, Allocator.Persistent);
 
-            var safeGridX = Mathf.Max(1, _generateDataSO.GridSize.x);
-            var safeGridY = Mathf.Max(1, _generateDataSO.GridSize.y);
-            var safeGridZ = Mathf.Max(1, _generateDataSO.GridSize.z);
-            var closureBoundsMin = new float3(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
-            var closureBoundsMax = new float3(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
             var totalVoxelCount = 0;
+            var closureExtensionOffset = new float3(closureExtension);
 
             for (var i = 0; i < chunkCount; i++)
             {
-                var halfSize = chunkSize * 0.5f;
-                var boundsMin = chunkOrigins[i] - halfSize;
-                var boundsMax = chunkOrigins[i] + halfSize;
+                const byte openFaceMask = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5);
+                var chunk = chunkBounds[i];
+                var boundsMin = chunk.Min;
+                var boundsMax = chunk.Max;
 
-                var x = i % safeGridX;
-                var y = (i / safeGridX) % safeGridY;
-                var z = i / (safeGridX * safeGridY);
-
-                byte openFaceMask = 0;
-                if (x == 0)
-                    openFaceMask |= 1 << 0;
-                if (x == safeGridX - 1)
-                    openFaceMask |= 1 << 1;
-                if (y == 0)
-                    openFaceMask |= 1 << 2;
-                if (y == safeGridY - 1)
-                    openFaceMask |= 1 << 3;
-                if (z == 0)
-                    openFaceMask |= 1 << 4;
-                if (z == safeGridZ - 1)
-                    openFaceMask |= 1 << 5;
-
-                var extendedBoundsMin = boundsMin;
-                var extendedBoundsMax = boundsMax;
-                if ((openFaceMask & (1 << 0)) != 0)
-                    extendedBoundsMin.x -= closureExtension;
-                if ((openFaceMask & (1 << 1)) != 0)
-                    extendedBoundsMax.x += closureExtension;
-                if ((openFaceMask & (1 << 2)) != 0)
-                    extendedBoundsMin.y -= closureExtension;
-                if ((openFaceMask & (1 << 3)) != 0)
-                    extendedBoundsMax.y += closureExtension;
-                if ((openFaceMask & (1 << 4)) != 0)
-                    extendedBoundsMin.z -= closureExtension;
-                if ((openFaceMask & (1 << 5)) != 0)
-                    extendedBoundsMax.z += closureExtension;
+                var extendedBoundsMin = boundsMin - closureExtensionOffset;
+                var extendedBoundsMax = boundsMax + closureExtensionOffset;
 
                 boundsMinArray[i] = extendedBoundsMin;
                 boundsMaxArray[i] = extendedBoundsMax;
-                closureBoundsMin = math.min(closureBoundsMin, extendedBoundsMin);
-                closureBoundsMax = math.max(closureBoundsMax, extendedBoundsMax);
+                closureBoundsMinArray[i] = extendedBoundsMin;
+                closureBoundsMaxArray[i] = extendedBoundsMax;
                 voxelSizeArray[i] = normalizedVoxelSize;
                 noiseScaleArray[i] = _generateDataSO.NoiseScale;
                 seedArray[i] = _generateDataSO.Seed;
@@ -113,12 +83,6 @@ namespace CaveCreation
                 voxelStartIndexArray[i] = totalVoxelCount;
                 voxelCountArray[i] = voxelCount;
                 totalVoxelCount += voxelCount;
-            }
-
-            for (var i = 0; i < chunkCount; i++)
-            {
-                closureBoundsMinArray[i] = closureBoundsMin;
-                closureBoundsMaxArray[i] = closureBoundsMax;
             }
 
             var voxelsNative = new NativeArray<float4>(totalVoxelCount, Allocator.Persistent);
@@ -191,24 +155,136 @@ namespace CaveCreation
             return pointsCountX * pointsCountY * pointsCountZ;
         }
 
-        private List<float3> BuildChunkOrigins()
+        private List<ChunkBounds> BuildRoomChunkBounds(
+            float3 fallbackChunkSize,
+            float voxelSize)
         {
-            var chunkOrigins = new List<float3>();
-            var safeGridX = Mathf.Max(1, _generateDataSO.GridSize.x);
-            var safeGridY = Mathf.Max(1, _generateDataSO.GridSize.y);
-            var safeGridZ = Mathf.Max(1, _generateDataSO.GridSize.z);
-            var chunkSize = _generateDataSO.ChunkSize;
-            var baseOrigin = _generateDataSO.CaveOrigin;
+            var caveSize = GetSafeCaveSize(fallbackChunkSize);
+            var caveBoundsMin = new float3(_generateDataSO.CaveOrigin) - caveSize * 0.5f;
+            var caveBoundsMax = caveBoundsMin + caveSize;
 
-            for (var z = 0; z < safeGridZ; z++)
-            for (var y = 0; y < safeGridY; y++)
-            for (var x = 0; x < safeGridX; x++)
-                chunkOrigins.Add(new float3(
-                    baseOrigin.x + x * chunkSize.x,
-                    baseOrigin.y + y * chunkSize.y,
-                    baseOrigin.z + z * chunkSize.z));
+            var totalRoomChunkCount =
+                Mathf.Max(0, _generateDataSO.SmallRoomChunks.Amount) +
+                Mathf.Max(0, _generateDataSO.MediumRoomChunks.Amount) +
+                Mathf.Max(0, _generateDataSO.LargeRoomChunks.Amount);
+            var chunks = new List<ChunkBounds>(totalRoomChunkCount);
+            var random = new Unity.Mathematics.Random((uint)(_generateDataSO.Seed == 0 ? 1 : _generateDataSO.Seed));
 
-            return chunkOrigins;
+            AddRoomChunks(_generateDataSO.LargeRoomChunks, caveBoundsMin, caveBoundsMax, voxelSize, ref random, chunks);
+            AddRoomChunks(_generateDataSO.MediumRoomChunks, caveBoundsMin, caveBoundsMax, voxelSize, ref random, chunks);
+            AddRoomChunks(_generateDataSO.SmallRoomChunks, caveBoundsMin, caveBoundsMax, voxelSize, ref random, chunks);
+
+            return chunks;
+        }
+
+        private float3 GetSafeCaveSize(float3 fallbackChunkSize)
+        {
+            var caveSize = new float3(_generateDataSO.CaveSize.x, _generateDataSO.CaveSize.y, _generateDataSO.CaveSize.z);
+            if (caveSize.x > 0f && caveSize.y > 0f && caveSize.z > 0f)
+                return caveSize;
+
+            var legacyGridSize = new float3(
+                Mathf.Max(1, _generateDataSO.GridSize.x),
+                Mathf.Max(1, _generateDataSO.GridSize.y),
+                Mathf.Max(1, _generateDataSO.GridSize.z));
+            return fallbackChunkSize * legacyGridSize;
+        }
+
+        private void AddRoomChunks(
+            RoomChunkTypeSettings settings,
+            float3 caveBoundsMin,
+            float3 caveBoundsMax,
+            float voxelSize,
+            ref Unity.Mathematics.Random random,
+            List<ChunkBounds> chunks)
+        {
+            var amount = Mathf.Max(0, settings.Amount);
+            if (amount == 0)
+                return;
+
+            var sizeMin = Mathf.Max(voxelSize * 2f, Mathf.Min(settings.SizeRange.x, settings.SizeRange.y));
+            var sizeMax = Mathf.Max(sizeMin, Mathf.Max(settings.SizeRange.x, settings.SizeRange.y));
+            var heightScaleMin = Mathf.Max(0.1f, Mathf.Min(_generateDataSO.RoomChunkHeightScaleRange.x,
+                _generateDataSO.RoomChunkHeightScaleRange.y));
+            var heightScaleMax = Mathf.Max(heightScaleMin, Mathf.Max(_generateDataSO.RoomChunkHeightScaleRange.x,
+                _generateDataSO.RoomChunkHeightScaleRange.y));
+            var attempts = Mathf.Max(1, _generateDataSO.RoomChunkPlacementAttempts);
+            var caveSize = caveBoundsMax - caveBoundsMin;
+
+            for (var roomIndex = 0; roomIndex < amount; roomIndex++)
+            {
+                var bestChunk = default(ChunkBounds);
+                var bestScore = float.NegativeInfinity;
+
+                for (var attempt = 0; attempt < attempts; attempt++)
+                {
+                    var baseSize = random.NextFloat(sizeMin, sizeMax);
+                    var size = new float3(
+                        baseSize * random.NextFloat(0.85f, 1.2f),
+                        baseSize * random.NextFloat(heightScaleMin, heightScaleMax),
+                        baseSize * random.NextFloat(0.85f, 1.2f));
+                    size = math.min(size, caveSize);
+
+                    var halfSize = size * 0.5f;
+                    var center = RandomPointInsideBounds(caveBoundsMin + halfSize, caveBoundsMax - halfSize, ref random);
+                    var candidate = new ChunkBounds(center - halfSize, center + halfSize);
+                    var score = ScoreChunkPlacement(candidate, chunks);
+
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        bestChunk = candidate;
+                    }
+                }
+
+                chunks.Add(bestChunk);
+            }
+        }
+
+        private static float ScoreChunkPlacement(ChunkBounds candidate, IReadOnlyList<ChunkBounds> chunks)
+        {
+            if (chunks.Count == 0)
+                return 0f;
+
+            var candidateCenter = candidate.Center;
+            var candidateRadius = math.length(candidate.Size) * 0.5f;
+            var score = float.PositiveInfinity;
+
+            for (var i = 0; i < chunks.Count; i++)
+            {
+                var chunk = chunks[i];
+                var radius = math.length(chunk.Size) * 0.5f;
+                score = math.min(score, math.distance(candidateCenter, chunk.Center) - candidateRadius - radius);
+            }
+
+            return score;
+        }
+
+        private static float3 RandomPointInsideBounds(
+            float3 min,
+            float3 max,
+            ref Unity.Mathematics.Random random)
+        {
+            var center = (min + max) * 0.5f;
+            return new float3(
+                min.x <= max.x ? random.NextFloat(min.x, max.x) : center.x,
+                min.y <= max.y ? random.NextFloat(min.y, max.y) : center.y,
+                min.z <= max.z ? random.NextFloat(min.z, max.z) : center.z);
+        }
+
+        private readonly struct ChunkBounds
+        {
+            public readonly float3 Min;
+            public readonly float3 Max;
+
+            public float3 Center => (Min + Max) * 0.5f;
+            public float3 Size => Max - Min;
+
+            public ChunkBounds(float3 min, float3 max)
+            {
+                Min = min;
+                Max = max;
+            }
         }
     }
 }
