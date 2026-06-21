@@ -12,7 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e9a9000e9d28d9142a072bd15fa8cd73, type: 3}
   m_Name: Random_1x1x1_228601550
   m_EditorClassIdentifier: 
-  GridSize: {x: 1, y: 1, z: 1}
   CaveOrigin: {x: 0, y: 0, z: 0}
   ChunkPrefab: {fileID: 3641658353688913044, guid: 00aeaa1f9f75add4689640050b0c0bbf, type: 3}
   VoxelSize: 1

@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using CaveCreation.GenerationData;
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Burst;
@@ -27,16 +26,41 @@ namespace Utils
         private const float QUINTIC_FADE_COEFFICIENT_FOR_T4 = 15f;
         private const float QUINTIC_FADE_COEFFICIENT_FOR_T3 = 10f;
 
-        public static void GetVoxelValues(
+        public static void GetSdfVoxelValues(
             NativeList<float4> result,
             float3 boundsMin,
             float3 boundsMax,
             float voxelSize,
             float3 noiseScale,
             int seed,
-            int octaves = 4,
-            float lacunarity = 2f,
-            float persistence = 0.5f)
+            int octaves,
+            float lacunarity,
+            float persistence,
+            float isoLevel,
+            NativeArray<float3> roomCenterArray,
+            NativeArray<float3> roomRadiusArray,
+            NativeArray<float3> tunnelStartArray,
+            NativeArray<float3> tunnelEndArray,
+            NativeArray<float> tunnelRadiusArray,
+            NativeArray<int> roomIndexArray,
+            int roomIndexStart,
+            int roomIndexCount,
+            NativeArray<int> tunnelIndexArray,
+            int tunnelIndexStart,
+            int tunnelIndexCount,
+            float surfaceThicknessInVoxels,
+            float smoothUnionInVoxels,
+            float wallNoiseAmplitudeInVoxels,
+            float wallNoiseScaleInVoxels,
+            float wallLobeStrength,
+            float wallLobeScaleMultiplier,
+            float tunnelLobeStrength,
+            float tunnelLobeScaleMultiplier,
+            float interiorNoiseStrength,
+            float interiorNoiseCutoff,
+            float interiorWallClearanceInVoxels,
+            float interiorTunnelClearanceInVoxels,
+            float interiorClearanceBlendInVoxels)
         {
             if (voxelSize <= 0f)
                 voxelSize = 1f;
@@ -45,12 +69,24 @@ namespace Utils
                 octaves = 1;
 
             var permutationArray = BuildPermutationTable(seed, Allocator.Temp);
-
             var size = boundsMax - boundsMin;
-
             var pointsCountX = math.max(1, (int)math.round(size.x / voxelSize)) + 1;
             var pointsCountY = math.max(1, (int)math.round(size.y / voxelSize)) + 1;
             var pointsCountZ = math.max(1, (int)math.round(size.z / voxelSize)) + 1;
+            var surfaceThickness = voxelSize * math.max(0.1f, surfaceThicknessInVoxels);
+            var smoothUnionDistance = voxelSize * math.max(0f, smoothUnionInVoxels);
+            var wallNoiseAmplitude = voxelSize * math.max(0f, wallNoiseAmplitudeInVoxels);
+            var wallNoiseFrequency = 1f / (voxelSize * math.max(0.1f, wallNoiseScaleInVoxels));
+            var wallLobeFrequency = wallNoiseFrequency / math.max(0.1f, wallLobeScaleMultiplier);
+            var tunnelLobeFrequency = wallNoiseFrequency / math.max(0.1f, tunnelLobeScaleMultiplier);
+            var interiorWallClearance = voxelSize * math.max(0f, interiorWallClearanceInVoxels);
+            var interiorTunnelClearance = voxelSize * math.max(0f, interiorTunnelClearanceInVoxels);
+            var interiorClearanceBlend = voxelSize * math.max(0.1f, interiorClearanceBlendInVoxels);
+            var previousNoiseScale = math.select(
+                new float3(wallNoiseFrequency),
+                math.abs(noiseScale),
+                math.abs(noiseScale) > new float3(0.0001f));
+            var noiseInfluenceDistance = wallNoiseAmplitude + smoothUnionDistance + surfaceThickness * 2f;
 
             for (var yIndex = 0; yIndex < pointsCountY; yIndex++)
             {
@@ -63,14 +99,58 @@ namespace Utils
                     for (var zIndex = 0; zIndex < pointsCountZ; zIndex++)
                     {
                         var zCoordinate = boundsMin.z + zIndex * voxelSize;
+                        var position = new float3(xCoordinate, yCoordinate, zCoordinate);
+                        var sdf = EvaluateCaveSdf(
+                            position,
+                            roomCenterArray,
+                            roomRadiusArray,
+                            tunnelStartArray,
+                            tunnelEndArray,
+                            tunnelRadiusArray,
+                            roomIndexArray,
+                            roomIndexStart,
+                            roomIndexCount,
+                            tunnelIndexArray,
+                            tunnelIndexStart,
+                            tunnelIndexCount,
+                            smoothUnionDistance,
+                            permutationArray,
+                            octaves,
+                            lacunarity,
+                            persistence,
+                            previousNoiseScale,
+                            wallNoiseFrequency,
+                            wallLobeFrequency,
+                            tunnelLobeFrequency,
+                            wallNoiseAmplitude,
+                            wallLobeStrength,
+                            tunnelLobeStrength,
+                            noiseInfluenceDistance);
 
-                        var noiseValue = FractalBrownianMotion3D(
-                            xCoordinate * noiseScale.x,
-                            yCoordinate * noiseScale.y,
-                            zCoordinate * noiseScale.z,
-                            permutationArray, octaves, lacunarity, persistence);
-
-                        result.Add(new float4(xCoordinate, yCoordinate, zCoordinate, noiseValue));
+                        var scalarValue = SdfToScalarValue(sdf, isoLevel, surfaceThickness);
+                        scalarValue = ApplyInteriorNoiseStructures(
+                            position,
+                            scalarValue,
+                            sdf,
+                            isoLevel,
+                            permutationArray,
+                            octaves,
+                            lacunarity,
+                            persistence,
+                            previousNoiseScale,
+                            wallNoiseFrequency,
+                            tunnelStartArray,
+                            tunnelEndArray,
+                            tunnelRadiusArray,
+                            tunnelIndexArray,
+                            tunnelIndexStart,
+                            tunnelIndexCount,
+                            math.saturate(interiorNoiseStrength),
+                            math.saturate(interiorNoiseCutoff),
+                            interiorWallClearance,
+                            interiorTunnelClearance,
+                            interiorClearanceBlend);
+                        result.Add(new float4(position, scalarValue));
                     }
                 }
             }
@@ -167,6 +247,377 @@ namespace Utils
             return result;
         }
 
+        private static float EvaluateCaveSdf(
+            float3 position,
+            NativeArray<float3> roomCenterArray,
+            NativeArray<float3> roomRadiusArray,
+            NativeArray<float3> tunnelStartArray,
+            NativeArray<float3> tunnelEndArray,
+            NativeArray<float> tunnelRadiusArray,
+            NativeArray<int> roomIndexArray,
+            int roomIndexStart,
+            int roomIndexCount,
+            NativeArray<int> tunnelIndexArray,
+            int tunnelIndexStart,
+            int tunnelIndexCount,
+            float smoothUnionDistance,
+            NativeArray<int> permutationArray,
+            int octaves,
+            float lacunarity,
+            float persistence,
+            float3 previousNoiseScale,
+            float wallNoiseFrequency,
+            float wallLobeFrequency,
+            float tunnelLobeFrequency,
+            float wallNoiseAmplitude,
+            float wallLobeStrength,
+            float tunnelLobeStrength,
+            float noiseInfluenceDistance)
+        {
+            var sdf = float.PositiveInfinity;
+
+            for (var roomOffset = 0; roomOffset < roomIndexCount; roomOffset++)
+            {
+                var i = roomIndexArray[roomIndexStart + roomOffset];
+                var baseRoomSdf = EllipsoidSdf(position, roomCenterArray[i], roomRadiusArray[i]);
+                var roomSdf = math.abs(baseRoomSdf) <= noiseInfluenceDistance
+                    ? NoisyEllipsoidSdf(
+                        position,
+                        roomCenterArray[i],
+                        roomRadiusArray[i],
+                        permutationArray,
+                        octaves,
+                        lacunarity,
+                        persistence,
+                        previousNoiseScale,
+                        wallNoiseFrequency,
+                        wallLobeFrequency,
+                        wallNoiseAmplitude,
+                        wallLobeStrength)
+                    : baseRoomSdf;
+                sdf = UnionSdf(sdf, roomSdf, smoothUnionDistance);
+            }
+
+            for (var tunnelOffset = 0; tunnelOffset < tunnelIndexCount; tunnelOffset++)
+            {
+                var i = tunnelIndexArray[tunnelIndexStart + tunnelOffset];
+                var baseTunnelSdf = CapsuleSdf(position, tunnelStartArray[i], tunnelEndArray[i], tunnelRadiusArray[i]);
+                var tunnelSdf = math.abs(baseTunnelSdf) <= noiseInfluenceDistance
+                    ? NoisyCapsuleSdf(
+                        position,
+                        tunnelStartArray[i],
+                        tunnelEndArray[i],
+                        tunnelRadiusArray[i],
+                        permutationArray,
+                        octaves,
+                        lacunarity,
+                        persistence,
+                        previousNoiseScale,
+                        wallNoiseFrequency,
+                        tunnelLobeFrequency,
+                        wallNoiseAmplitude,
+                        tunnelLobeStrength)
+                    : baseTunnelSdf;
+                sdf = UnionSdf(sdf, tunnelSdf, smoothUnionDistance);
+            }
+
+            return math.isfinite(sdf) ? sdf : 100000f;
+        }
+
+        private static float ApplyInteriorNoiseStructures(
+            float3 position,
+            float scalarValue,
+            float sdf,
+            float isoLevel,
+            NativeArray<int> permutationArray,
+            int octaves,
+            float lacunarity,
+            float persistence,
+            float3 previousNoiseScale,
+            float wallNoiseFrequency,
+            NativeArray<float3> tunnelStartArray,
+            NativeArray<float3> tunnelEndArray,
+            NativeArray<float> tunnelRadiusArray,
+            NativeArray<int> tunnelIndexArray,
+            int tunnelIndexStart,
+            int tunnelIndexCount,
+            float interiorNoiseStrength,
+            float interiorNoiseCutoff,
+            float interiorWallClearance,
+            float interiorTunnelClearance,
+            float interiorClearanceBlend)
+        {
+            if (interiorNoiseStrength <= 0f || sdf >= -interiorWallClearance)
+                return scalarValue;
+
+            var wallMask = math.saturate((-sdf - interiorWallClearance) / interiorClearanceBlend);
+            var baseNoise = FractalBrownianMotion3D(
+                position.x * previousNoiseScale.x,
+                position.y * previousNoiseScale.y,
+                position.z * previousNoiseScale.z,
+                permutationArray,
+                octaves,
+                lacunarity,
+                persistence);
+            var detailNoise = FractalBrownianMotion3D(
+                position.x * wallNoiseFrequency * 1.65f + 83.11f,
+                position.y * wallNoiseFrequency * 1.65f - 12.47f,
+                position.z * wallNoiseFrequency * 1.65f + 29.73f,
+                permutationArray,
+                octaves,
+                lacunarity,
+                persistence);
+            var structureNoise = baseNoise * 0.75f + detailNoise * 0.25f;
+            var structureScalar = structureNoise + isoLevel - interiorNoiseCutoff;
+            if (structureScalar >= isoLevel)
+                return scalarValue;
+
+            var tunnelMask = ComputeTunnelInteriorMask(
+                position,
+                tunnelStartArray,
+                tunnelEndArray,
+                tunnelRadiusArray,
+                tunnelIndexArray,
+                tunnelIndexStart,
+                tunnelIndexCount,
+                interiorTunnelClearance,
+                interiorClearanceBlend);
+            var influence = interiorNoiseStrength * wallMask * tunnelMask;
+            if (influence <= 0f)
+                return scalarValue;
+
+            return math.lerp(scalarValue, math.min(scalarValue, structureScalar), influence);
+        }
+
+        private static float ComputeTunnelInteriorMask(
+            float3 position,
+            NativeArray<float3> tunnelStartArray,
+            NativeArray<float3> tunnelEndArray,
+            NativeArray<float> tunnelRadiusArray,
+            NativeArray<int> tunnelIndexArray,
+            int tunnelIndexStart,
+            int tunnelIndexCount,
+            float extraClearance,
+            float blendDistance)
+        {
+            var mask = 1f;
+            for (var tunnelOffset = 0; tunnelOffset < tunnelIndexCount; tunnelOffset++)
+            {
+                var i = tunnelIndexArray[tunnelIndexStart + tunnelOffset];
+                var clearRadius = tunnelRadiusArray[i] + extraClearance;
+                var axisDistanceSq = DistanceSqToSegment(position, tunnelStartArray[i], tunnelEndArray[i]);
+                var clearRadiusSq = clearRadius * clearRadius;
+                if (axisDistanceSq <= clearRadiusSq)
+                    return 0f;
+
+                var blendEnd = clearRadius + blendDistance;
+                if (axisDistanceSq >= blendEnd * blendEnd)
+                    continue;
+
+                var axisDistance = math.sqrt(axisDistanceSq);
+                mask = math.min(mask, math.saturate((axisDistance - clearRadius) / blendDistance));
+            }
+
+            return mask;
+        }
+
+        private static float SdfToScalarValue(float sdf, float isoLevel, float surfaceThickness)
+        {
+            var normalizedDistance = sdf / math.max(0.001f, surfaceThickness);
+            return math.clamp(isoLevel - normalizedDistance * 0.5f, 0f, 1f);
+        }
+
+        private static float UnionSdf(float a, float b, float smoothDistance)
+        {
+            if (!math.isfinite(a))
+                return b;
+
+            if (smoothDistance <= 0f)
+                return math.min(a, b);
+
+            var h = math.saturate(0.5f + 0.5f * (b - a) / smoothDistance);
+            return math.lerp(b, a, h) - smoothDistance * h * (1f - h);
+        }
+
+        private static float EllipsoidSdf(float3 position, float3 center, float3 radius)
+        {
+            var safeRadius = math.max(radius, new float3(0.001f));
+            return (math.length((position - center) / safeRadius) - 1f) * math.cmin(safeRadius);
+        }
+
+        private static float CapsuleSdf(float3 position, float3 start, float3 end, float radius)
+        {
+            var segment = end - start;
+            var segmentLengthSq = math.lengthsq(segment);
+            if (segmentLengthSq <= 0.0001f)
+                return math.length(position - start) - radius;
+
+            var t = math.saturate(math.dot(position - start, segment) / segmentLengthSq);
+            var closestPoint = start + segment * t;
+            return math.length(position - closestPoint) - radius;
+        }
+
+        private static float DistanceSqToSegment(float3 position, float3 start, float3 end)
+        {
+            var segment = end - start;
+            var segmentLengthSq = math.lengthsq(segment);
+            if (segmentLengthSq <= 0.0001f)
+                return math.distancesq(position, start);
+
+            var t = math.saturate(math.dot(position - start, segment) / segmentLengthSq);
+            return math.distancesq(position, start + segment * t);
+        }
+
+        private static float NoisyEllipsoidSdf(
+            float3 position,
+            float3 center,
+            float3 radius,
+            NativeArray<int> permutationArray,
+            int octaves,
+            float lacunarity,
+            float persistence,
+            float3 previousNoiseScale,
+            float wallNoiseFrequency,
+            float wallLobeFrequency,
+            float wallNoiseAmplitude,
+            float wallLobeStrength)
+        {
+            var safeRadius = math.max(radius, new float3(0.001f));
+            var offset = position - center;
+            var normalizedDistance = math.length(offset / safeRadius);
+            var baseSdf = (normalizedDistance - 1f) * math.cmin(safeRadius);
+            var safeAmplitude = math.min(wallNoiseAmplitude, math.cmin(safeRadius) * 0.28f);
+            if (safeAmplitude <= 0f)
+                return baseSdf;
+
+            var direction = math.lengthsq(offset) > 0.0001f ? math.normalize(offset) : new float3(1f, 0f, 0f);
+            var surfaceDistance = 1f / math.max(0.0001f, math.length(direction / safeRadius));
+            var surfacePoint = center + direction * surfaceDistance;
+
+            return baseSdf - ComputeClosedWallDisplacement(
+                surfacePoint,
+                previousNoiseScale,
+                wallNoiseFrequency,
+                wallLobeFrequency,
+                safeAmplitude,
+                wallLobeStrength,
+                permutationArray,
+                octaves,
+                lacunarity,
+                persistence);
+        }
+
+        private static float NoisyCapsuleSdf(
+            float3 position,
+            float3 start,
+            float3 end,
+            float radius,
+            NativeArray<int> permutationArray,
+            int octaves,
+            float lacunarity,
+            float persistence,
+            float3 previousNoiseScale,
+            float wallNoiseFrequency,
+            float wallLobeFrequency,
+            float wallNoiseAmplitude,
+            float wallLobeStrength)
+        {
+            var segment = end - start;
+            var segmentLengthSq = math.lengthsq(segment);
+            if (segmentLengthSq <= 0.0001f)
+                return math.length(position - start) - radius;
+
+            var t = math.saturate(math.dot(position - start, segment) / segmentLengthSq);
+            var closestPoint = start + segment * t;
+            var radialOffset = position - closestPoint;
+            var baseSdf = math.length(radialOffset) - radius;
+            var safeAmplitude = math.min(wallNoiseAmplitude * 0.6f, radius * 0.28f);
+            if (safeAmplitude <= 0f)
+                return baseSdf;
+
+            var radialDirection = math.lengthsq(radialOffset) > 0.0001f
+                ? math.normalize(radialOffset)
+                : GetAnyPerpendicularDirection(segment);
+            var surfacePoint = closestPoint + radialDirection * radius;
+
+            return baseSdf - ComputeClosedWallDisplacement(
+                surfacePoint,
+                previousNoiseScale,
+                wallNoiseFrequency,
+                wallLobeFrequency,
+                safeAmplitude,
+                wallLobeStrength,
+                permutationArray,
+                octaves,
+                lacunarity,
+                persistence);
+        }
+
+        private static float ComputeClosedWallDisplacement(
+            float3 surfacePoint,
+            float3 previousNoiseScale,
+            float wallNoiseFrequency,
+            float wallLobeFrequency,
+            float safeAmplitude,
+            float wallLobeStrength,
+            NativeArray<int> permutationArray,
+            int octaves,
+            float lacunarity,
+            float persistence)
+        {
+            var previousNoise = FractalBrownianMotion3D(
+                surfacePoint.x * previousNoiseScale.x,
+                surfacePoint.y * previousNoiseScale.y,
+                surfacePoint.z * previousNoiseScale.z,
+                permutationArray,
+                octaves,
+                lacunarity,
+                persistence);
+            var lobeNoise = FractalBrownianMotion3D(
+                surfacePoint.x * wallLobeFrequency - 71.43f,
+                surfacePoint.y * wallLobeFrequency + 14.19f,
+                surfacePoint.z * wallLobeFrequency - 37.65f,
+                permutationArray,
+                octaves,
+                lacunarity,
+                persistence);
+            var wallNoise = FractalBrownianMotion3D(
+                surfacePoint.x * wallNoiseFrequency + 31.17f,
+                surfacePoint.y * wallNoiseFrequency - 47.93f,
+                surfacePoint.z * wallNoiseFrequency + 11.61f,
+                permutationArray,
+                octaves,
+                lacunarity,
+                persistence);
+            var detailNoise = FractalBrownianMotion3D(
+                surfacePoint.x * wallNoiseFrequency * 2.35f - 19.73f,
+                surfacePoint.y * wallNoiseFrequency * 2.35f + 7.41f,
+                surfacePoint.z * wallNoiseFrequency * 2.35f + 53.29f,
+                permutationArray,
+                octaves,
+                lacunarity,
+                persistence);
+            var lobe = ShapeWallNoise(lobeNoise * 2f - 1f) * math.max(0f, wallLobeStrength);
+            var broad = (previousNoise * 2f - 1f) * 0.55f;
+            var medium = (wallNoise * 2f - 1f) * 0.35f;
+            var detail = (detailNoise * 2f - 1f) * 0.1f;
+            return math.clamp((lobe + broad + medium + detail) * safeAmplitude, -safeAmplitude, safeAmplitude);
+        }
+
+        private static float ShapeWallNoise(float value)
+        {
+            var sign = math.select(-1f, 1f, value >= 0f);
+            var magnitude = math.pow(math.saturate(math.abs(value)), 0.72f);
+            return sign * magnitude;
+        }
+
+        private static float3 GetAnyPerpendicularDirection(float3 direction)
+        {
+            var reference = math.abs(direction.y) < 0.85f ? new float3(0f, 1f, 0f) : new float3(1f, 0f, 0f);
+            var perpendicular = math.cross(direction, reference);
+            return math.lengthsq(perpendicular) > 0.0001f ? math.normalize(perpendicular) : new float3(1f, 0f, 0f);
+        }
+
         private static NativeArray<int> BuildPermutationTable(int seed, Allocator allocator)
         {
             var permutationArray = new NativeArray<int>(PERMUTATION_ARRAY_SIZE, allocator);
@@ -187,187 +638,6 @@ namespace Utils
                 permutationArray[index] = permutationArray[index - PERMUTATION_TABLE_SIZE];
 
             return permutationArray;
-        }
-        
-        public static void ApplyOpenBoundaryWalls(
-            NativeList<float4> voxelValues,
-            float3 closureBoundsMin,
-            float3 closureBoundsMax,
-            float voxelSize,
-            float3 noiseScale,
-            int seed,
-            int octaves,
-            float lacunarity,
-            float persistence,
-            float isoLevel,
-            BoundaryClosureSettings closureSettings,
-            byte openFaceMask)
-        {
-            if (voxelValues.Length == 0 || openFaceMask == 0)
-                return;
-
-            if (voxelSize <= 0f)
-                voxelSize = 1f;
-
-            if (octaves < 1)
-                octaves = 1;
-
-            var permutationArray = BuildPermutationTable(seed, Allocator.Temp);
-            var wallBlendDistance = voxelSize * math.max(0f, closureSettings.WallSmoothingDistanceInVoxels);
-            var extensionDistance = voxelSize * math.max(0f, closureSettings.WallNoiseExtensionInVoxels);
-            var isoCeiling = math.max(0.02f, isoLevel - 0.02f);
-            var hardSealValueFloor = math.max(0f, closureSettings.HardSealValue);
-            var hardSealCeiling = math.max(hardSealValueFloor, isoLevel - 0.12f);
-            var center = (closureBoundsMin + closureBoundsMax) * 0.5f;
-            var halfExtents = math.max((closureBoundsMax - closureBoundsMin) * 0.5f, new float3(0.001f));
-            var minNormalizedBand = math.max(0.001f, closureSettings.ClosureMinNormalizedBand);
-            var maxNormalizedBand = math.max(minNormalizedBand, closureSettings.ClosureMaxNormalizedBand);
-            var normalizedClosureBand = math.clamp(
-                voxelSize * math.max(0.001f, closureSettings.ClosureBandInVoxels) /
-                math.max(0.001f, math.cmin(halfExtents)),
-                minNormalizedBand,
-                maxNormalizedBand);
-            var closureStartRadius = 1f - normalizedClosureBand;
-
-            for (var i = 0; i < voxelValues.Length; i++)
-            {
-                var voxel = voxelValues[i];
-                var position = voxel.xyz;
-                var baseValue = voxel.w;
-                var rockOffset = ComputeClosureRockOffset(position, voxelSize, permutationArray, closureSettings);
-                var localClosureStartRadius = math.clamp(
-                    closureStartRadius - rockOffset * normalizedClosureBand * math.max(0f, closureSettings.RockRadiusAmplitude),
-                    0.05f,
-                    0.98f);
-                var sphericalClosureBlend = ComputeSphericalClosureInfluence(
-                    position,
-                    center,
-                    halfExtents,
-                    localClosureStartRadius);
-                
-                if (sphericalClosureBlend <= 0f)
-                    continue;
-
-                var minXInfluence = (openFaceMask & (1 << 0)) != 0
-                    ? ComputeBoundaryInfluence(position.x - closureBoundsMin.x, wallBlendDistance)
-                    : 0f;
-                var maxXInfluence = (openFaceMask & (1 << 1)) != 0
-                    ? ComputeBoundaryInfluence(closureBoundsMax.x - position.x, wallBlendDistance)
-                    : 0f;
-                var minYInfluence = (openFaceMask & (1 << 2)) != 0
-                    ? ComputeBoundaryInfluence(position.y - closureBoundsMin.y, wallBlendDistance)
-                    : 0f;
-                var maxYInfluence = (openFaceMask & (1 << 3)) != 0
-                    ? ComputeBoundaryInfluence(closureBoundsMax.y - position.y, wallBlendDistance)
-                    : 0f;
-                var minZInfluence = (openFaceMask & (1 << 4)) != 0
-                    ? ComputeBoundaryInfluence(position.z - closureBoundsMin.z, wallBlendDistance)
-                    : 0f;
-                var maxZInfluence = (openFaceMask & (1 << 5)) != 0
-                    ? ComputeBoundaryInfluence(closureBoundsMax.z - position.z, wallBlendDistance)
-                    : 0f;
-
-                var wallBlend = math.saturate(math.pow(sphericalClosureBlend, 0.82f) * math.max(0f, closureSettings.WallStrength));
-                if (wallBlend <= 0f)
-                    continue;
-
-                var extensionOffset = new float3(
-                    (maxXInfluence - minXInfluence) * extensionDistance,
-                    (maxYInfluence - minYInfluence) * extensionDistance,
-                    (maxZInfluence - minZInfluence) * extensionDistance);
-
-                var extendedNoiseSample = FractalBrownianMotion3D(
-                    (position.x + extensionOffset.x) * noiseScale.x,
-                    (position.y + extensionOffset.y) * noiseScale.y,
-                    (position.z + extensionOffset.z) * noiseScale.z,
-                    permutationArray,
-                    octaves + math.max(0, closureSettings.WallDetailOctavesOffset),
-                    lacunarity,
-                    persistence);
-
-                var detailedWallValue = math.lerp(baseValue, extendedNoiseSample, math.saturate(closureSettings.WallNoiseBlend));
-                detailedWallValue -= math.saturate(rockOffset) * math.max(0f, closureSettings.RockDensityVariation) * wallBlend;
-                detailedWallValue = math.clamp(detailedWallValue * 0.45f + 0.1f, 0.02f, isoCeiling);
-
-                var blendedValue = math.lerp(baseValue, detailedWallValue, wallBlend);
-                var hardSealBlend = math.saturate(math.pow(sphericalClosureBlend, math.max(0.001f, closureSettings.ClosureHardening)));
-
-                if (hardSealBlend > 0f)
-                {
-                    var hardSealValue = math.clamp(
-                        hardSealValueFloor + extendedNoiseSample * 0.08f,
-                        hardSealValueFloor,
-                        hardSealCeiling);
-                    blendedValue = math.lerp(blendedValue, hardSealValue, hardSealBlend);
-                }
-
-                voxelValues[i] = new float4(position, blendedValue);
-            }
-
-            permutationArray.Dispose();
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float ComputeBoundaryInfluence(float distanceToBoundary, float maxDistance)
-        {
-            if (distanceToBoundary <= 0f)
-                return 1f;
-
-            if (distanceToBoundary >= maxDistance)
-                return 0f;
-
-            var linear = 1f - distanceToBoundary / maxDistance;
-            return linear * linear * (3f - 2f * linear);
-        }
-
-        private static float ComputeSphericalClosureInfluence(
-            float3 position,
-            float3 center,
-            float3 halfExtents,
-            float closureStartRadius)
-        {
-            var normalizedPosition = (position - center) / halfExtents;
-            var radialDistance = math.length(normalizedPosition);
-            if (radialDistance <= closureStartRadius)
-                return 0f;
-
-            var blend = math.saturate((radialDistance - closureStartRadius) / (1f - closureStartRadius));
-            return blend * blend * (3f - 2f * blend);
-        }
-
-        private static float ComputeClosureRockOffset(
-            float3 position,
-            float voxelSize,
-            NativeArray<int> permutationArray,
-            BoundaryClosureSettings closureSettings)
-        {
-            var normalizedVoxelSize = math.max(voxelSize, 0.001f);
-            var lumpFrequency = 1f / (normalizedVoxelSize * math.max(0.001f, closureSettings.RockLumpSizeInVoxels));
-            var detailFrequency = 1f / (normalizedVoxelSize * math.max(0.001f, closureSettings.RockDetailSizeInVoxels));
-
-            var lumpNoise = FractalBrownianMotion3D(
-                position.x * lumpFrequency + 17.31f,
-                position.y * lumpFrequency - 41.73f,
-                position.z * lumpFrequency + 93.17f,
-                permutationArray,
-                3,
-                2.05f,
-                0.55f);
-
-            var detailNoise = FractalBrownianMotion3D(
-                position.x * detailFrequency - 113.11f,
-                position.y * detailFrequency + 29.57f,
-                position.z * detailFrequency - 7.83f,
-                permutationArray,
-                2,
-                2.25f,
-                0.45f);
-
-            var signedLump = lumpNoise * 2f - 1f;
-            var ridgedDetail = 1f - math.abs(detailNoise * 2f - 1f);
-            var stonePeak = math.pow(math.saturate(ridgedDetail), 2.4f);
-
-            return math.clamp(signedLump * 0.65f + stonePeak * 0.8f - 0.25f, -1f, 1f);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

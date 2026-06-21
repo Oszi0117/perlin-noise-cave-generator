@@ -159,7 +159,7 @@ namespace CaveCreation
 
             return mesh;
         }
-        
+
         private static int CalculateMaxVertices(VoxelData[] voxels, float voxelSize)
         {
             if (voxels == null || voxels.Length == 0)

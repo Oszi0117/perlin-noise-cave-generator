@@ -12,41 +12,43 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e9a9000e9d28d9142a072bd15fa8cd73, type: 3}
   m_Name: Default
   m_EditorClassIdentifier: 
-  GridSize: {x: 3, y: 1, z: 6}
   CaveOrigin: {x: 0, y: 0, z: 0}
-  CaveSize: {x: 500, y: 500, z: 500}
+  CaveSize: {x: 300, y: 300, z: 300}
   ChunkPrefab: {fileID: 3641658353688913044, guid: 00aeaa1f9f75add4689640050b0c0bbf, type: 3}
   VoxelSize: 1
-  ChunkSize: {x: 100, y: 100, z: 100}
+  ChunkSize: {x: 50, y: 50, z: 50}
   NoiseScale: {x: 0.02, y: 0.02, z: 0.02}
   Seed: 2137
   Octaves: 4
   Lacunarity: 2
   Persistence: 0.5
   IsoLevel: 0.5
+  SdfSurfaceThicknessInVoxels: 4
+  SdfSmoothUnionInVoxels: 12
+  SdfWallNoiseAmplitudeInVoxels: 12
+  SdfWallNoiseScaleInVoxels: 10
+  SdfWallLobeStrength: 1.35
+  SdfWallLobeScaleMultiplier: 3
+  SdfTunnelLobeStrength: 0.8
+  SdfTunnelLobeScaleMultiplier: 2.5
+  SdfInteriorNoiseStrength: 1
+  SdfInteriorNoiseCutoff: 0.4848
+  SdfInteriorWallClearanceInVoxels: 24
+  SdfInteriorTunnelClearanceInVoxels: 24
+  SdfInteriorClearanceBlendInVoxels: 12
   SmallRoomChunks:
-    Amount: 4
+    Amount: 0
     SizeRange: {x: 50, y: 70}
   MediumRoomChunks:
     Amount: 3
     SizeRange: {x: 60, y: 100}
   LargeRoomChunks:
-    Amount: 4
+    Amount: 2
     SizeRange: {x: 200, y: 180}
   RoomChunkPlacementAttempts: 8
   RoomChunkHeightScaleRange: {x: 0.6, y: 1.1}
-  ClosureExtensionInVoxels: 8
-  ClosureWallSmoothingDistanceInVoxels: 6
-  ClosureWallNoiseExtensionInVoxels: 1
-  ClosureWallDetailOctavesOffset: 0
-  ClosureWallNoiseBlend: 0.1
-  ClosureWallStrength: 0.9
-  ClosureBandInVoxels: 12
-  ClosureMinNormalizedBand: 0.08
-  ClosureMaxNormalizedBand: 0.35
-  ClosureHardening: 1.5
-  ClosureRockLumpSizeInVoxels: 16
-  ClosureRockDetailSizeInVoxels: 10
-  ClosureRockRadiusAmplitude: 0.2
-  ClosureRockDensityVariation: 0.2
-  ClosureHardSealValue: 0.01
+  ConnectRoomsWithSdfTunnels: 1
+  TunnelRadius: 32
+  TunnelSegmentLength: 70
+  TunnelCurveAmplitude: 35
+  TunnelCurvePointSpacing: 80

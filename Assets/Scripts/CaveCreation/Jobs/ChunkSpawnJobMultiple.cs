@@ -118,7 +118,7 @@ namespace CaveCreation.Jobs
             }
 
             var edgeFlags = EdgeTable[cubeIndex];
-            if (edgeFlags == 0 || edgeFlags == 255)
+            if (edgeFlags == 0)
                 return;
 
             var edgePositionsA = new float3x4();
